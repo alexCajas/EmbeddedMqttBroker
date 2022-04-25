@@ -1,9 +1,9 @@
 [![Esp32](https://img.shields.io/badge/platform-ESP32-green)](https://www.espressif.com/en/products/socs/esp32)
 [![Mqtt 3.1.1](https://img.shields.io/badge/Mqtt-%203.1.1-yellow)](https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/errata01/os/mqtt-v3.1.1-errata01-os-complete.html#_Toc442180822)
-[![Arduino](https://img.shields.io/badge/](https://www.arduino.cc/)platform-Arduino-green)
+[![Arduino](https://img.shields.io/badge/platform-Arduino-green)](https://www.arduino.cc/)
 ![C++](https://img.shields.io/badge/-C%2B%2B-blue)
 ![FreeRTOS](https://img.shields.io/badge/-FreeRTOS-blue)
-![Version] (https://img.shields.io/badge/Version-1.0.0-red)
+![Version](https://img.shields.io/badge/Version-1.0.0-red)
 
 # EmbeddedMqttBroker
 This is a **Mqtt broker** developed for embedded devices, in **c++** programming language, **FreeRTOS**, **arduino core** and tested in an **Esp32**. **This project include** [https://github.com/alexCajas/WrapperFreeRTOS] to implement concurrent C++ objects.
