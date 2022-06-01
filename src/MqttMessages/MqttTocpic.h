@@ -1,5 +1,5 @@
-#ifndef MQTTTOPIC.H
-#define MQTTTOPIC.H
+#ifndef MQTTTOPIC_H
+#define MQTTTOPIC_H
 
 class MqttTocpic
 {

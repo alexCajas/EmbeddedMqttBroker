@@ -1,5 +1,5 @@
-#ifndef MQTTMESSAGE.H
-#define MQTTMESSAGE.H
+#ifndef MQTTMESSAGE_H
+#define MQTTMESSAGE_H
 
 #include "WiFi.h"
 #include "ControlPacketType.h"
@@ -96,4 +96,4 @@ class MqttMessage {
             }
 };
 
-#endif //MQTTMESSAGE.H
+#endif //MQTTMESSAGE_H

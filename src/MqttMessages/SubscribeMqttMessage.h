@@ -1,5 +1,5 @@
-#ifndef SUBSCRIBEMQTTMESSAGE.H
-#define SUBSCRIBEMQTTMESSAGE.H
+#ifndef SUBSCRIBEMQTTMESSAGE_H
+#define SUBSCRIBEMQTTMESSAGE_H
 
 #include "MqttMessage.h"
 #include "MqttTocpic.h"
@@ -48,4 +48,4 @@ public:
     }
 };
 
-#endif //SUBSCRIBEMQTTMESSAGE.H
+#endif //SUBSCRIBEMQTTMESSAGE_H

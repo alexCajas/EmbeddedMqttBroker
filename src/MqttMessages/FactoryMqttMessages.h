@@ -1,5 +1,5 @@
-#ifndef FACTORYMQTTMESSAGES.H
-#define FACTORYMQTTMESSAGES.H
+#ifndef FACTORYMQTTMESSAGES_H
+#define FACTORYMQTTMESSAGES_H
 
 #include "MqttMessage.h"
 #include "ConnectMqttMessage.h"

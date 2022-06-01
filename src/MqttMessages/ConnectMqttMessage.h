@@ -1,5 +1,5 @@
-#ifndef CONNECTMQTTMESSAGE.H
-#define CONNECTMQTTMESSAGE.H
+#ifndef CONNECTMQTTMESSAGE_H
+#define CONNECTMQTTMESSAGE_H
 
 #include "MqttMessage.h"
 #include "ReaderMqttPacket.h"

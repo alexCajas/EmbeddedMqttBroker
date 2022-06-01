@@ -1,5 +1,5 @@
-#ifndef NOTMQTTMESSAGE.H
-#define NOTMQTTMESSAGE.H
+#ifndef NOTMQTTMESSAGE_H
+#define NOTMQTTMESSAGE_H
 
 #include "MqttMessage.h"
 
@@ -16,4 +16,4 @@ public:
     }
 };
 
-#endif //NOTMQTTMESSAGE.H
+#endif //NOTMQTTMESSAGE_H
