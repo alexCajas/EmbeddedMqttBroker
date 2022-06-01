@@ -1,5 +1,5 @@
-#ifndef MQTTMESSAGESEREALIZABLE.H
-#define MQTTMESSAGESEREALIZABLE.H
+#ifndef MQTTMESSAGESEREALIZABLE_H
+#define MQTTMESSAGESEREALIZABLE_H
 
 /**
  * @brief Interfaz to MqttMessages that can be send by broker mqtt.
@@ -23,4 +23,4 @@ class MqttMessageSerealizable{
 
 };
 
-#endif "MQTTMESSAGESEREALIZABLE.H"
+#endif //MQTTMESSAGESEREALIZABLE_H

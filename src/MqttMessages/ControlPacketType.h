@@ -1,5 +1,5 @@
-#ifndef CONTROLPACKETTYPE.H
-#define CONTROLPACKETTYPE.H
+#ifndef CONTROLPACKETTYPE_H
+#define CONTROLPACKETTYPE_H
 /**
  * @brief Types of mqtt packets
  * 
@@ -45,4 +45,4 @@
 #define NOTSESIONPRESENT    0
 #define SESIONPRESENT       1
 
-#endif // CONTROLPACKETTYPES.H
+#endif // CONTROLPACKETTYPES_H

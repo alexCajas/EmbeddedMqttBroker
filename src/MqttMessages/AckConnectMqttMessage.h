@@ -1,5 +1,5 @@
-#ifndef ACKCONNECTMQTTMESSAGE.H
-#define ACKCONNECTMQTTMESSAGE.H
+#ifndef ACKCONNECTMQTTMESSAGE_H
+#define ACKCONNECTMQTTMESSAGE_H
 
 #include "MqttMessage.h"
 #include "MqttMessagesSerealizable.h"
@@ -49,4 +49,4 @@ public:
 
 
 
-#endif "ACKCONNECTMQTTMESSAGE.H"
+#endif //ACKCONNECTMQTTMESSAGE_H

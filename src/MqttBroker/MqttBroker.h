@@ -1,5 +1,5 @@
-#ifndef MQTTBROKER.H
-#define MQTTBROKER.H
+#ifndef MQTTBROKER_H
+#define MQTTBROKER_H
 
 #include <WiFi.h> 
 #include <map>
@@ -708,4 +708,4 @@ public:
 
 };
 
-#endif //MQTTBROKER.H
+#endif //MQTTBROKER_H

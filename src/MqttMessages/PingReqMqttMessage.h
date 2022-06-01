@@ -1,5 +1,5 @@
-#ifndef PINGREQMQTTMESSAGE.H
-#define PINGREQMQTTMESSAGE.H
+#ifndef PINGREQMQTTMESSAGE_H
+#define PINGREQMQTTMESSAGE_H
 
 #include "MqttMessage.h"
 
@@ -17,4 +17,4 @@ public:
     }
 };
 
-#endif //PINGREQMQTTMESSAGE.H
+#endif //PINGREQMQTTMESSAGE_H

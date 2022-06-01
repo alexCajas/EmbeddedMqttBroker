@@ -1,5 +1,5 @@
-#ifndef PUBLISHMQTTMESSAGE.H
-#define PUBLISHMQTTMESSAGE.H
+#ifndef PUBLISHMQTTMESSAGE_H
+#define PUBLISHMQTTMESSAGE_H
 
 #include "MqttMessage.h"
 #include "ReaderMqttPacket.h"

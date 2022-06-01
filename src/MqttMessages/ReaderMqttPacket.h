@@ -1,5 +1,5 @@
-#ifndef READERMQTTPACKET.H
-#define READERMQTTPACKET.H
+#ifndef READERMQTTPACKET_H
+#define READERMQTTPACKET_H
 
 #include "WiFi.h"
 #include "MqttMessage.h"
@@ -181,4 +181,4 @@ class ReaderMqttPacket {
         int decodeTwoBytes(int index, uint16_t *variable);
 };
 
-#endif //READERMQTTPACKET.H
+#endif //READERMQTTPACKET_H

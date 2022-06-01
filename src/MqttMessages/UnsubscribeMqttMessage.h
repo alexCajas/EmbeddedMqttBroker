@@ -1,5 +1,5 @@
-#ifndef UNSUBSCRIBEMQTTMESSAGE.H
-#define UNSUBSCRIBEMQTTMESSAGE.H
+#ifndef UNSUBSCRIBEMQTTMESSAGE_H
+#define UNSUBSCRIBEMQTTMESSAGE_H
 
 #include "MqttMessage.h"
 #include <vector>

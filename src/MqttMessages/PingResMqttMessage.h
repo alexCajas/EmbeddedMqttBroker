@@ -1,5 +1,5 @@
-#ifndef PINGRESMQTTMESSAGE.H
-#define PINGRESMQTTMESSAGE.H
+#ifndef PINGRESMQTTMESSAGE_H
+#define PINGRESMQTTMESSAGE_H
 
 #include "MqttMessage.h"
 #include "MqttMessagesSerealizable.h"
@@ -25,4 +25,4 @@ public:
 
 
 
-#endif //PINGRESMQTTMESSAGE.H
+#endif //PINGRESMQTTMESSAGE_H
