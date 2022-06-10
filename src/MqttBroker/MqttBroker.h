@@ -212,6 +212,9 @@ class Action{
             this->mqttClient = mqttClient;
         }
 
+
+        virtual ~Action(){}
+
         /**
          * @brief Action to implement.
          * 
@@ -405,7 +408,6 @@ class PublishAction: public Action{
          * PublishMqttMessage object.
          */
         PublishAction(MqttClient* mqttClient, ReaderMqttPacket packetReaded);
-        ~PublishAction();
     
         /**
          * @brief Notify to Broker class a publish mqtt request

@@ -37,7 +37,6 @@ public:
      * @param packetReaded object where is all mqtt packet raw data.
      */    
     UnsubscribeMqttMessage(ReaderMqttPacket packetReaded);
-    ~UnsubscribeMqttMessage();
 };
 
 

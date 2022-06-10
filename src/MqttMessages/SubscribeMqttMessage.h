@@ -41,7 +41,6 @@ public:
      * @param packetReaded object where is all mqtt packet raw data.
      */
     SubscribeMqttMessage(ReaderMqttPacket packetReaded);
-    ~SubscribeMqttMessage();
 
     std::vector<MqttTocpic> getTopics(){
         return topics;
