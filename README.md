@@ -1,19 +1,38 @@
 [![Esp32](https://img.shields.io/badge/platform-ESP32-green)](https://www.espressif.com/en/products/socs/esp32)
 [![Mqtt 3.1.1](https://img.shields.io/badge/Mqtt-%203.1.1-yellow)](https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/errata01/os/mqtt-v3.1.1-errata01-os-complete.html#_Toc442180822)
+![QoS](https://img.shields.io/badge/QoS-0-red)
 [![Arduino](https://img.shields.io/badge/platform-Arduino-green)](https://www.arduino.cc/)
 ![C++](https://img.shields.io/badge/-C%2B%2B-blue)
 ![FreeRTOS](https://img.shields.io/badge/-FreeRTOS-blue)
-![Version](https://img.shields.io/badge/Version-1.0.0-red)
+
+[![Release](https://img.shields.io/github/v/release/alexCajas/EmbeddedMqttBroker)](https://github.com/alexCajas/embeddedMqttBroker/releases/latest)
+
+[![arduino-library-badge](https://www.ardu-badge.com/badge/EmbeddedMqttBroker.svg?)](https://www.ardu-badge.com/EmbeddedMqttBroker)
+
+[![PlatformIO Registry](https://badges.registry.platformio.org/packages/alexCajas/library/EmbeddedMqttBroker.svg)](https://registry.platformio.org/libraries/alexCajas/EmbeddedMqttBroker)
 
 # EmbeddedMqttBroker
-This is a **Mqtt broker** developed for embedded devices, in **c++** programming language, **FreeRTOS**, **arduino core** and tested in an **Esp32**. **This project include** [https://github.com/alexCajas/WrapperFreeRTOS] to implement concurrent C++ objects.
 
+This is a **Mqtt broker** developed for embedded devices, in **c++** programming language, **FreeRTOS**, **arduino core** and tested in an **Esp32**. **This project include** [https://github.com/alexCajas/WrapperFreeRTOS] to implement concurrent C++ objects.
 
 ## Usage examples sketches
 
 * **simpleMqttBroker.ino**: It show how to create, instantiate and use, a MqttBroker object.
 
-* **httpServerAndMqttBroker.ino**: It show how to use a web server and a mqtt broker in the same sketch.
+* **httpServerAndMqttBroker.ino**: It show how to use a web server and mqtt broker in the same sketch.
+
+## Install
+
+* You can install this, from arduino library manager, searching **embeddedmqttbroker**.
+
+* From platformIO using **alexcajas/EmbeddedMqttBroker@^1.0.1**
+
+* Or downloading this repo and [https://github.com/alexCajas/WrapperFreeRTOS] manually.
+
+## Branchs
+
+* main: Here is the last version of the project.
+* main-QOS0: Functional and tested version that only implements QOS 0.
 
 ---
 
@@ -33,10 +52,11 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
 
 * 4. [Understanding Mqtt packets](#id7)
 
-* 5. [Features to implement in future versions of this project](#id8)
+* 5. [Current features and limitations](#id10)
 
-* 6. [Bibliography](#id9)
+* 6. [Features to implement in future versions of this project](#id8)
 
+* 7. [Bibliography](#id9)
 
 ---
 
@@ -61,7 +81,6 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
 * With this method the broker can listen to all connected mqtt clients, at the same time. The time efficiency here, is of order O(1), using the above example, broker processes all messages that arrive at time 1. The main problem of this method is the memory consumed by each task, but is the most time efficient method.  
 
 * This problem, time vs memory consumed, is a constant in programming developments, sometimes you need to save as much memory as possible, but sacrificing cpu time, other times, you need to be very fast, sacrificing memory, but usually, you need to reach to a balance between cpu time efficiency and memory consumed.
-
 
 ### 1.2 How to publish a mqtt packet to all interested connected clients? <a name="id3"></a>
 
@@ -100,11 +119,11 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
 * If the mqtt broker is implemented like a vector of MqttClients objects (where each object represents a mqtt client with his tcp connection) connected to this broker, and:
   * it is delegated to MqttClient object the responasibility of listen his tcp socket
 
-  * and if it is implement each MqttClient object like an generates event object and event object listener
+  * and if it is implement each MqttClient object like an generates event object and event object listener 
 
 * then, each MqttClient can listen to other MqttClients publish events, at the same time that each MqttClient can notify his publish event, and each MqttClient can do that in parallel!.
 
-* It is true that when a MqttClient object received from his tpc connection a "mqtt publish packet", the object stop to listen his socket to notify this event to the others MqttClients objects, but it is stoped only his socket, the other tcp connections are still listened.
+* It is true that when a MqttClient object received from his tpc connection a "mqtt publish packet", the object stop to listen his socket to notify this event to the others MqttClients objects, but it is stoped only his socket, the other tcp connections are still listened. 
 
 * For other way, is a big step, go from stop the listen of all tcp connections to stop only the connection that needs to resend a "mqtt publish packet".
 
@@ -133,7 +152,6 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
 
   * If mqtt desing best practices are used, the efficiency of prefix tree is increased, and conversely, if these mqtt design best practices are not used, the efficiency worsens, but this is true for any mqtt architecture, and for any mqtt broker. These are two article examples where you can learn mqtt desing best practices [https://docs.aws.amazon.com/whitepapers/latest/designing-mqtt-topics-aws-iot-core/mqtt-design-best-practices.html], [https://www.hivemq.com/blog/mqtt-essentials-part-5-mqtt-topics-best-practices/].
   
-
 ### 1.3 Wildcards match <a name="id4"></a>
 
 * Using a topic tree, is easy to implement Wildcards:
@@ -144,7 +162,6 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
     * In this case, it is only necessary, to add the mqttClient to "$building1" node.
 
   * **"+"**: To match with single level wildcard, it is necessary, to add the subscribed client, in all son nodes of this level:
-
     * $building1/apartmentB/controllers/+/bethroom
     * In this case, it is necessary to add the client in "lights/bethroom" node and "doors/bethroom" node.
 
@@ -167,6 +184,7 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
 
 * For these reasons, a hasmap structure is not the recommend structure to use to implement wildcars, considering that it doesn't improve the efficiency of Tree and with a Tree is easy to implement wildcards.
 
+
 ## 2. Implementacion of this project <a name="id5"></a>
 
 * I would like this project to be as educational, general, scalable and reusable, in others architectures, as possible for this reason, I use:
@@ -180,11 +198,9 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
 
 ## 3. Max number of open tcp sockets at the same time on esp32 <a name="id6"></a>
 
-* **Esp32 can only keep 10 tcp sockets open at the same time**, this limitation comes from lwIP library, a small implementation of TCP/IP protocol, wich aims to reduce ram usage [https://github.com/espressif/esp-lwip]. Esp32 has enough ram memory to open more tcp sockets, especially if it is used the wrover B model, but to day, lwIP library doesn't support more connections. You can try set lwIp options and test if Esp32 can accept more tcp connections, you can find these options probably in /home/yourUser/.arduino15/packages/esp32/hardware/esp32/1.0.5/tools/sdk/include/lwip/lwip/opt.h
+* **Esp32 can only keep 16 tcp sockets open at the same time**, this limitation comes from lwIP library, a small implementation of TCP/IP protocol, wich aims to reduce ram usage [https://github.com/espressif/esp-lwip]. Esp32 has enough ram memory to open more tcp sockets, especially if it is used the wrover B model, but to day, lwIP library doesn't support more connections. You can try set lwIp options and test if Esp32 can accept more tcp connections, you can find these options probably in /home/yourUser/.arduino15/packages/esp32/hardware/esp32/1.0.5/tools/sdk/include/lwip/lwip/opt.h
 
-* This is the reason why a broker, or any server based on TCP/IP, like HTTP server, implement in Esp32 only can listen to 9 clients (1 socket is needed to listen for new clients).
-
-* This isue: https://github.com/espressif/esp-idf/issues/4900 of espressif github page, talks about 16 tcp sockets, probably there was a version of lwIp library which accepts 16 tcp connections.
+* This is the reason why a broker, or any server based on TCP/IP, like HTTP server, implement in Esp32 only can listen to 16 clients.
 
 ## 4. Understanding Mqtt packets: <a name="id7"></a>
 
@@ -222,12 +238,27 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
 
 * **Variable header** has, fields like topic, payload or client id, that have variable lenght size, the size of this fields, is encoded always with two bytes, and the decode is simple, it is only necessary concatenate this bytes, the first byte is the **Most Significant byte** (MSb) and the second is the **Less Significant byte** (LSb).
   
-## 5. Features to implement in future versions of this project <a name="id8"></a>
+## 5. Current features and limitations <a name="id10"></a>
+
+* **QOS**:
+  * only QOS 0
+
+* **topics**:
+  * You can store 2.828KBytes in topics
+  * One character is 1 byte, so You can use 2.828K characters
+  
+* **max payload length**: 50KBytes.
+  
+* on average each MqttClient object size 20KBytes.
+
+* It can re-sent **1000 topics** in **0.723 seconds**, **10000 topics** in **7.40 seconds**.
+
+## 6. Features to implement in future versions of this project <a name="id8"></a>
 
 * QOS 1.
 * QOS 2.  
 
-## 6. Bibliography <a name="id9"></a>
+## 7. Bibliography <a name="id9"></a>
 
 * [http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html]
 * [https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/lwip.html]
