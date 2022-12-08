@@ -71,10 +71,12 @@ NodeTrie* Trie::subscribeToTopic(String topic, MqttClient* client){
     return aux;
 }
 
-void Trie::getSubscribedMqttClients(std::map<int,MqttClient*>* clients, String topic){
+std::vector<int>* Trie::getSubscribedMqttClients(String topic){
     
+    std::vector<int>* clientsIds = new std::vector<int>();    
     NodeTrie *tmp = root;
     unsigned int i = 0;
     topic += '$';
-    tmp->findSubscribedMqttClients(clients,topic,i);
+    tmp->findSubscribedMqttClients(clientsIds,topic,i);
+    return clientsIds;
 }

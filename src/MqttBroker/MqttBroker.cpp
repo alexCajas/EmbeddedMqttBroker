@@ -68,16 +68,16 @@ void MqttBroker::stopBroker(){
 
 
 void MqttBroker::publishMessage(PublishMqttMessage * publishMqttMessage){
-  std::map<int,MqttClient*>* clientsSubscribed = new std::map<int,MqttClient*>();
+  std::vector<int>* clientsSubscribedIds = topicTrie->getSubscribedMqttClients(publishMqttMessage->getTopic().getTopic());
 
+  Serial.print("publishing: ");
   Serial.println(publishMqttMessage->getTopic().getTopic());
-  topicTrie->getSubscribedMqttClients(clientsSubscribed,publishMqttMessage->getTopic().getTopic());
-
-  std::map<int,MqttClient*>::iterator it;
-  for(it = clientsSubscribed->begin(); it != clientsSubscribed->end(); it++){
-    it->second->publishMessage(publishMqttMessage);
+  
+  for(std::size_t it = 0; it != clientsSubscribedIds->size(); it++){
+    clients[clientsSubscribedIds->at(it)]->publishMessage(publishMqttMessage);
   }
-  delete clientsSubscribed;
+  delete clientsSubscribedIds; // topicTrie->getSubscirbedMqttClient() don't free std::vector*
+                            // the user is responsible to free de memory allocated
 }
 
 void MqttBroker::SubscribeClientToTopic(SubscribeMqttMessage * subscribeMqttMessage, MqttClient* client){

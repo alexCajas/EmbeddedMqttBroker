@@ -565,20 +565,20 @@ private:
      * creates a branch with the character "+". This method check if "+" node
      * is present in this topic level and explore that branch, if is so. If there is a match with
      * the topic, put into clients varable, all mqttClients found.
-     * @param clients map where store the mqttClients.
+     * @param clientsIds vector where store the id of mqttClients.
      * @param topic where is looking for in the tree.
      * @param index where start the topic level.
      */
-    void matchWithPlusWildCard(std::map<int,MqttClient*>* clients,String topic, int index);
+    void matchWithPlusWildCard(std::vector<int>* clientsIds,String topic, int index);
     
     /**
      * @brief When some client subscribe to a topic usin "#" wildcard, the tree
      * creates a branch with the character "#". This method checks if "#" node
      * is present in this topic level, if is so, put into clients varable, all mqttClients found.
-     * @param clients map where store the mqttClients.
+     * @param clientsIds vector where store the id of mqttClients.
      * @param topic where is looking for in the tree.
      */
-    void matchWithNumberSignWildCard(std::map<int,MqttClient*>* clients,String topic);
+    void matchWithNumberSignWildCard(std::vector<int>* clientsIds,String topic);
 
 public:
     NodeTrie();
@@ -632,11 +632,11 @@ public:
      * @brief This method insert the mqttClients subscribed to the topic in
      * a map. Here is implemented the search of mqttClients subscribed by wildcards. 
      * 
-     * @param clients map where store all mqttClients subscribed to topic.
+     * @param clientsIds vector where store all id of mqttClients subscribed to topic.
      * @param topic that clients are subscribed.
      * @param index where start the proccesing of topic.
      */
-    void findSubscribedMqttClients(std::map<int,MqttClient*>* clients,String topic, int index);
+    void findSubscribedMqttClients(std::vector<int>*clientsIds, String topic, int index);
 
     void unSubscribeMqttClient(MqttClient * mqttClient){
         subscribedClients->erase(mqttClient->getId());
@@ -701,12 +701,14 @@ public:
     NodeTrie* subscribeToTopic(String topic, MqttClient* client);
 
     /**
-     * @brief Get the Subscribed Mqtt Clients map.
+     * @brief Get the vector of the id of subscribed mqtt clients, Warning!, this 
+     * method allocate dinamically the vector but don't free this, the user is responsible
+     * to free the memory allocated to avoid memory holes.
      * 
      * @param topic that mqttClients are subscribed.
-     * @return std::map<int,MqttClient*>* map where are all mqttClients subscribed to this topic.
+     * @return std::vector<int>* vector where are all id of the mqttClients subscribed to this topic.
      */
-    void getSubscribedMqttClients(std::map<int,MqttClient*>* clients,String topic);
+    std::vector<int>* getSubscribedMqttClients(String topic);
 
 };
 
