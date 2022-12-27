@@ -1,5 +1,5 @@
 #include "MqttBroker/MqttBroker.h"
-
+using namespace mqttBrokerName;
 /***************************** MqttClient class *************************/
 MqttClient::~MqttClient(){
   // delete action; // action is allocated when it is used

@@ -9,6 +9,8 @@
 #include "MqttMessages/UnsubscribeMqttMessage.h"
 #include "MqttMessages/PublishMqttMessage.h"
 
+
+namespace mqttBrokerName{
 // Depends of your architecture, max num clients is exactly the 
 // max num open sockets that your divece can support.
 #define MAXNUMCLIENTS 16
@@ -713,3 +715,4 @@ public:
 };
 
 #endif //MQTTBROKER_H
+}

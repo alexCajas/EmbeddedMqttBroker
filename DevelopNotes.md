@@ -1,5 +1,16 @@
 # Notes of develop procces
 
+## v1.0.3 - qos 0
+
+### Done
+
+#### update 27/12/2022
+
+* Added name space in project 
+
+
+---
+
 ## v1.0.2
 
 * This version implements only qos 0

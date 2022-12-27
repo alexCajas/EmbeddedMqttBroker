@@ -1,5 +1,5 @@
 #include "MqttBroker/MqttBroker.h"
-
+using namespace mqttBrokerName;
 /********************** ListenerNewClientTask ******************/
 
 NewClientListenerTask::NewClientListenerTask(MqttBroker *broker, uint16_t port) : Task("ListenerNewClientTask", 1024*3, TaskPrio_Mid)

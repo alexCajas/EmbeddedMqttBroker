@@ -1,5 +1,5 @@
 #include "MqttBroker/MqttBroker.h"
-
+using namespace mqttBrokerName;
 ActionFactory::ActionFactory(){}
 
 Action* ActionFactory::getAction(MqttClient * mqttClient, ReaderMqttPacket packetReaded){

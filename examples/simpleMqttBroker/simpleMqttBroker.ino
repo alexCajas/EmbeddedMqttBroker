@@ -8,7 +8,7 @@
 
 #include <WiFi.h> 
 #include "EmbeddedMqttBroker.h"
-
+using namespace mqttBrokerName;
 const char *ssid = "...";
 const char *password = "***";
 
