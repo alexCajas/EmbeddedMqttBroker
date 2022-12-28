@@ -13,7 +13,9 @@ String PublishMqttMessage::buildMqttPacket(){
     String mqttPacket;
 
     //concat fixed header
-    mqttPacket.concat((char)getTypeAndFlags());
+    //mqttPacket.concat((char)getTypeAndFlags()); // for versions with qos > 0 support
+    mqttPacket.concat((char)48); // this line must be 
+    // replaced for the above line, for versions with qos > 0
 
     // process to concat remainingLength
         // 1ª calculate remainingLengt value
