@@ -2,6 +2,10 @@
 
 ## v1.0.3 - qos 0
 
+### doing
+
+* Add test_pub and test_sub
+
 ### Done
 
 #### update 27/12/2022
