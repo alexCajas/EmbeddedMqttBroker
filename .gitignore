@@ -33,7 +33,7 @@ bld/
 build/
 example
 src/wirelesConfiguration.h
-test/
+test
 exit.txt
 # Visual Studio 2015/2017 cache/options directory
 .vscode/
