@@ -198,9 +198,11 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
 
 ## 3. Max number of open tcp sockets at the same time on esp32 <a name="id6"></a>
 
-* **Esp32 can only keep 16 tcp sockets open at the same time**, this limitation comes from lwIP library, a small implementation of TCP/IP protocol, wich aims to reduce ram usage [https://github.com/espressif/esp-lwip]. Esp32 has enough ram memory to open more tcp sockets, especially if it is used the wrover B model, but to day, lwIP library doesn't support more connections. You can try set lwIp options and test if Esp32 can accept more tcp connections, you can find these options probably in /home/yourUser/.arduino15/packages/esp32/hardware/esp32/1.0.5/tools/sdk/include/lwip/lwip/opt.h
+* **Esp32 can only keep 10 tcp sockets open at the same time**, this limitation comes from lwIP library, a small implementation of TCP/IP protocol, wich aims to reduce ram usage [https://github.com/espressif/esp-lwip]. Esp32 has enough ram memory to open more tcp sockets, especially if it is used the wrover B model, but to day, lwIP library doesn't support more connections. You can try set lwIp options and test if Esp32 can accept more tcp connections, you can find these options probably in /home/yourUser/.arduino15/packages/esp32/hardware/esp32/1.0.5/tools/sdk/include/lwip/lwip/opt.h
 
-* This is the reason why a broker, or any server based on TCP/IP, like HTTP server, implement in Esp32 only can listen to 16 clients.
+* This is the reason why a broker, or any server based on TCP/IP, like HTTP server, implement in Esp32 only can listen to 9 clients (1 socket is needed to listen for new clients).
+
+* This isue: https://github.com/espressif/esp-idf/issues/4900 of espressif github page, talks about 16 tcp sockets, probably there was a version of lwIp library which accepts 16 tcp connections.
 
 ## 4. Understanding Mqtt packets: <a name="id7"></a>
 
