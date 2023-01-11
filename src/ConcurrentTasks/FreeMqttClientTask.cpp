@@ -13,7 +13,7 @@ void FreeMqttClientTask::run (void * data){
   while(true){
     
     xQueueReceive((*deleteMqttClientQueue), &clientId, portMAX_DELAY);
-    Serial.println("deleting client");
+    log_i("Deleting client: %i", clientId);
     broker->deleteMqttClient(clientId);
     
   }

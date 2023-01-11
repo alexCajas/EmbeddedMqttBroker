@@ -29,7 +29,7 @@ MqttBroker::MqttBroker(uint16_t port){
     /************* setup queues ***************************/
     deleteMqttClientQueue = xQueueCreate( 1, sizeof(int) );
     if(deleteMqttClientQueue == NULL){
-        Serial.println("fail to create queues");
+        log_e("Fail to create queue.");
         ESP.restart();
     }
 
@@ -46,12 +46,13 @@ void MqttBroker::addNewMqttClient(WiFiClient tcpClient, ConnectMqttMessage conne
   MqttClient *mqttClient = new MqttClient(tcpClient, &deleteMqttClientQueue, numClient, connectMessage.getKeepAlive(),this);
   clients.insert(std::make_pair(numClient, mqttClient));
   mqttClient->startTcpListener();
-  Serial.println("new client");
-  Serial.println(numClient);  
+  log_i("New client added: %i", mqttClient->getId());
+  log_v("%i clients active.", clients.size());
   numClient++;
 }
 
 void MqttBroker::deleteMqttClient(int clientId){
+    log_i("Deleting client: %i", clientId);
     MqttClient * client = clients[clientId];
     clients.erase(clientId);
     delete client;
@@ -70,8 +71,8 @@ void MqttBroker::stopBroker(){
 void MqttBroker::publishMessage(PublishMqttMessage * publishMqttMessage){
   std::vector<int>* clientsSubscribedIds = topicTrie->getSubscribedMqttClients(publishMqttMessage->getTopic().getTopic());
 
-  Serial.print("publishing: ");
-  Serial.println(publishMqttMessage->getTopic().getTopic());
+  log_v("Publishing topic: %s", publishMqttMessage->getTopic().getTopic().c_str());
+  log_d("Publishing to %i client(s).", clientsSubscribedIds->size());
   
   for(std::size_t it = 0; it != clientsSubscribedIds->size(); it++){
     clients[clientsSubscribedIds->at(it)]->publishMessage(publishMqttMessage);
@@ -84,10 +85,10 @@ void MqttBroker::SubscribeClientToTopic(SubscribeMqttMessage * subscribeMqttMess
   
   
   std::vector<MqttTocpic> topics = subscribeMqttMessage->getTopics();
-  Serial.println(topics[0].getTopic());
   NodeTrie *node;
   for(int i = 0; i < topics.size(); i++){
     node = topicTrie->subscribeToTopic(topics[i].getTopic(),client);
     client->addNode(node);
+    log_i("Client %i subscribed to %s.", client->getId(), topics[i].getTopic().c_str());
   }
 }

@@ -5,5 +5,5 @@ NoAction::NoAction(MqttClient *mqttClient):Action(mqttClient){
 }
 
 void NoAction::doAction(){
-    Serial.println("no action");
+    log_i("No action");
 }
