@@ -1,10 +1,22 @@
 # Notes of develop procces
 
-## v1.0.3 - qos 0
+## v1.0.4 - qos 0
 
 ### doing
 
 * Add test_pub and test_sub
+
+### done
+
+* Issue 5 closed.
+
+---
+
+## v1.0.3 - qos 0
+
+### doing
+
+* Add test_pub and test_sub (moved to v1.0.4 - qos0 )
 
 ### Done
 
