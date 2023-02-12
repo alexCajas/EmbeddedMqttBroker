@@ -27,7 +27,8 @@ MqttClient::MqttClient(WiFiClient tcpConnection, QueueHandle_t * deleteMqttClien
 }
 
 void MqttClient::publishMessage(PublishMqttMessage* publishMessage){
-  Serial.println("enviando publish");
+  log_v("Topic %s send to %i", publishMessage->getTopic().getTopic().c_str(), this->clientId);
+  log_v("\n%s", publishMessage->getTopic().getPayLoad().c_str());
   /*
   for qos > 0
   uint8_t publishFlasgs = 0x6 & topics[i].getQos();
@@ -85,7 +86,7 @@ void MqttClient::sendPacketByTcpConnection(String mqttPacket){
 
 void MqttClient::sendPingRes(){
   String resPacket = messagesFactory.getPingResMessage().buildMqttPacket();
-  Serial.println("sending ping response packet");
+  log_v("%i sending ping response.", this->clientId);
   sendPacketByTcpConnection(resPacket);
 }
 

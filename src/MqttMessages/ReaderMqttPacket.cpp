@@ -27,7 +27,7 @@ size_t ReaderMqttPacket::readRemainLengtSize(WiFiClient client){
      if (multiplier > 128 * 128 * 128)
      {
        // throw Error(Malformed Remaining Length)
-       Serial.println("Malformed Remaining Length");
+       log_e("Malformed remaining length.");
      }
 
   }while ((encodedByte & 128) != 0);
