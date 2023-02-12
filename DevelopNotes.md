@@ -4,7 +4,22 @@
 
 ### doing
 
+* Adding Steeve suggest esp32 logger library:
+  * It can only set using core debug level in arduino
+  * VSCODE c/C++ Configurations/Defines CORE_DEBUG_LEVEL = level
+  * I'm triying to set core debug level in code, but arduino framework use compile time configuration of debug level, for otherwise, I'm triyed:
+  
+  ```
+  #ifdef CORE_DEBUG_LEVEL
+  #undef CORE_DEBUG_LEVEL
+  #endif
+  #define CORE_DEBUG_LEVEL 3
 
+  #ifdef LOG_LOCAL_LEVEL
+  #undef LOG_LOCAL_LEVEL
+  #endif
+  #define LOG_LOCAL_LEVEL 3
+  ```
 
 ### done
 
