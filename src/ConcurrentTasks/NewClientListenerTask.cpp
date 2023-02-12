@@ -35,6 +35,7 @@ void NewClientListenerTask::run(void *data){
     /** if client don't send mqttpacket**/
     if (!client.available())
     {
+      log_w("Client from %s rejected.", client.remoteIP().toString());
       continue; // next iteration.
     } 
 

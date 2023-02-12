@@ -313,6 +313,7 @@ public:
      * 
      */
     void notifyDeleteClient(){
+        log_v("Notify broker to delete client: %i", clientId);
         xQueueSend((*deleteMqttClientQueue), &clientId, portMAX_DELAY);
     }
 
