@@ -4,9 +4,18 @@
 
 ### doing
 
-* Add test_pub and test_sub
+
 
 ### done
+
+Issue 4 closed:
+
+* Adding: wait to mqtt packet from client in NewClientListenerTask:
+  * On average RTT at most 500 millisecs
+  * vTaskdelay(100) worst the efficiency of the broker
+  * vTaskDelay(10) just add a delay in the connections.
+
+* Add test_pub and test_sub
 
 * Issue 5 closed.
 

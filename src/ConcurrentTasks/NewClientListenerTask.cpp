@@ -24,6 +24,14 @@ void NewClientListenerTask::run(void *data){
       continue;         // next iteration
     }
 
+    // Waiting the mqtt packet sended by the mqtt client
+    for (size_t i = 0; i < MAXWAITTOMQTTPACKET; i += 100)
+    {
+      if (client.available())
+        break;
+      vTaskDelay(10);
+    }
+
     /** if client don't send mqttpacket**/
     if (!client.available())
     {

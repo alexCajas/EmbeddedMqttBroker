@@ -11,10 +11,17 @@
 
 
 namespace mqttBrokerName{
+
 // Depends of your architecture, max num clients is exactly the 
 // max num open sockets that your divece can support.
 #define MAXNUMCLIENTS 16
 
+// When tcp conection have success, on average, a packet sended over
+// this tcp conecction takes at most 500milliseconds to arrive,
+// so an mqtt packet takes at most 500milliseconds to arrive to the broker.
+// If you mqtt client is connecting and disconnecting from the broker, you can
+// try to increasing this value.
+#define MAXWAITTOMQTTPACKET 500 
 
 class NewClientListenerTask;
 class FreeMqttClientTask;
