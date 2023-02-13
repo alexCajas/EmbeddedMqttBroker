@@ -4,12 +4,38 @@
 
 ### doing
 
+
+### done
+
+#### 13/2/2022
+
 * Adding Steeve suggest esp32 logger library:
-  * It can only set using core debug level in arduino
-  * VSCODE c/C++ Configurations/Defines CORE_DEBUG_LEVEL = level
+  * It can only to use with a precompile core debug level:
+    * Arduino IDE: set using, tools/Core Debug Level
+    * VSCODE: set using, arduino.json and adding ":
+  
+  ~~~c++
+  "buildPreferences": [
+        ["build.extra_flags", "-DCORE_DEBUG_LEVEL=ARDUHAL_LOG_LEVEL_VERBOSE"]
+    ]"
+  ~~~
+
+  * Platformio: set using:
+  
+  ~~~yaml
+  [env:esp32]
+  platform = espressif32
+  framework = arduino
+  board = esp32dev
+  lib_deps = 
+          alexcajas/WrapperFreeRTOS @ ^1.0.1
+          alexcajas/EmbeddedMqttBroker @ 1.0.4-qos0
+  build_flags = -DCORE_DEBUG_LEVEL=ARDUHAL_LOG_LEVEL_INFO
+  ~~~
+
   * I'm triying to set core debug level in code, but arduino framework use compile time configuration of debug level, for otherwise, I'm triyed:
   
-  ```
+  ~~~c++
   #ifdef CORE_DEBUG_LEVEL
   #undef CORE_DEBUG_LEVEL
   #endif
@@ -19,9 +45,17 @@
   #undef LOG_LOCAL_LEVEL
   #endif
   #define LOG_LOCAL_LEVEL 3
-  ```
+  .
+  .
+  .
+  setup(){
+      esp_log_level_set("*",ESP_LOG_INFO); # this line don't work.
+  }
+  ~~~
 
-### done
+  * But is not posible set core debug level in runtime.
+
+#### 12/2/2022
 
 Issue 4 closed:
 
@@ -31,6 +65,8 @@ Issue 4 closed:
   * vTaskDelay(10) just add a delay in the connections.
 
 * Add test_pub and test_sub
+
+#### --/--/--
 
 * Issue 5 closed.
 

@@ -86,7 +86,7 @@ void MqttClient::sendPacketByTcpConnection(String mqttPacket){
 
 void MqttClient::sendPingRes(){
   String resPacket = messagesFactory.getPingResMessage().buildMqttPacket();
-  log_v("%i sending ping response.", this->clientId);
+  log_v("sending ping response to %i.", this->clientId);
   sendPacketByTcpConnection(resPacket);
 }
 
