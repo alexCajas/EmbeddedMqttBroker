@@ -4,7 +4,6 @@
 
 ### doing
 
-
 ### done
 
 #### 13/2/2022
@@ -17,7 +16,7 @@
   ~~~c++
   "buildPreferences": [
         ["build.extra_flags", "-DCORE_DEBUG_LEVEL=ARDUHAL_LOG_LEVEL_VERBOSE"]
-    ]"
+    ]
   ~~~
 
   * Platformio: set using:

@@ -34,6 +34,43 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
 * main: Here is the last version of the project.
 * main-QOS0: Functional and tested version that only implements QOS 0.
 
+## Can't see broker activity outputs on Serial monitor?
+
+* Since 6e0b3b8 commit, this library use esp32-hal-log.h to show broker activity outputs like new clients id, topis to subscribe, to pusblish etc...
+
+* To see this activity you need to set a **core debug level**, this level say to esp32-hal-log.h what outputs to show:
+  * don't show logs: 0 (ARDUHAL_LOG_LEVEL_NONE)
+  * Error logs: 1 (ARDUHAL_LOG_LEVEL_ERROR)
+  * Warnings logs: 2 (ARDUHAL_LOG_LEVEL_WARM)
+  * Info logs: 3 (ARDUHAL_LOG_LEVEL_INFO)
+  * Debug logs: 4 (ARDUHAL_LOG_LEVEL_DEBUG)
+  * Verbose logs: 5 (ARDUHAL_LOG_LEVEL_VERBOSE)
+
+* Arduino framework only allows to set this level in compile time, for some reason if you try to set this at runtime it doesn't work.
+
+* To set core debug level:
+  * **Arduino IDE**: set using, tools/Core Debug Level
+  * **VSCODE arduino extension**: set using, arduino.json and adding ":
+  
+  ~~~c++
+    "buildPreferences": [
+        ["build.extra_flags", "-DCORE_DEBUG_LEVEL=ARDUHAL_LOG_LEVEL_INFO"]
+    ]
+  ~~~
+
+  * **Platformio**: set using
+  
+  ~~~yaml
+  [env:esp32]
+  platform = espressif32
+  framework = arduino
+  board = esp32dev
+  lib_deps = 
+          alexcajas/WrapperFreeRTOS @ ^1.0.1
+          alexcajas/EmbeddedMqttBroker @ 1.0.4-qos0
+  build_flags = -DCORE_DEBUG_LEVEL=ARDUHAL_LOG_LEVEL_INFO
+  ~~~
+  
 ---
 
 ## Table of contents
