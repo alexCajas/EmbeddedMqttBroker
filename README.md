@@ -36,7 +36,7 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
 
 ## Can't see broker activity outputs on Serial monitor?
 
-* Since 6e0b3b8 commit, this library use esp32-hal-log.h to show broker activity outputs like new clients id, topis to subscribe, to pusblish etc...
+* Since 6e0b3b8 commit, this library use **esp32-hal-log.h** to show broker activity outputs like new clients id, topis to subscribe, to pusblish etc...
 
 * To see this activity you need to set a **core debug level**, this level say to esp32-hal-log.h what outputs to show:
   * don't show logs: 0 (ARDUHAL_LOG_LEVEL_NONE)
@@ -50,7 +50,7 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
 
 * To set core debug level:
   * **Arduino IDE**: set using, tools/Core Debug Level
-  * **VSCODE arduino extension**: set using, arduino.json and adding ":
+  * **VSCODE arduino extension**: add in arduino.json
   
   ~~~c++
     "buildPreferences": [
@@ -58,7 +58,7 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
     ]
   ~~~
 
-  * **Platformio**: set using
+  * **Platformio**: add in build_flags
   
   ~~~yaml
   [env:esp32]
@@ -70,7 +70,7 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
           alexcajas/EmbeddedMqttBroker @ 1.0.4-qos0
   build_flags = -DCORE_DEBUG_LEVEL=ARDUHAL_LOG_LEVEL_INFO
   ~~~
-  
+
 ---
 
 ## Table of contents
