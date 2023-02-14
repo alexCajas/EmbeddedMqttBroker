@@ -1,5 +1,17 @@
 # Notes of develop procces
 
+## v1.0.5-qoss0
+
+### doing
+
+
+### done 
+
+### 14/2/2022
+* Added info of how to see outputs of broker activity in examples, version level up to 1.0.5, to arduino manager.
+
+---
+
 ## v1.0.4 - qos 0
 
 ### doing

@@ -28,6 +28,13 @@ WiFiClient httpClient;
 
 void setup(){
 
+  /**
+   * @brief To see outputs of broker activity 
+   * (message to publish, new client's id etc...), 
+   * set your core debug level higher to NONE (I recommend INFO level).
+   * More info: @link https://github.com/alexCajas/EmbeddedMqttBroker @endlink
+   */
+
   Serial.begin(115200);
   // Connect to WiFi network
   Serial.println();
