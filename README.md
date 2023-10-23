@@ -1,19 +1,20 @@
-[![Esp32](https://img.shields.io/badge/platform-ESP32-green)](https://www.espressif.com/en/products/socs/esp32)
+[![Esp32](https://img.shields.io/badge/soc-ESP32-green)](https://www.espressif.com/en/products/socs/esp32)
+[![Esp8266](https://img.shields.io/badge/soc-ESP8266-green)](https://www.espressif.com/en/products/socs/esp8266)
 [![Mqtt 3.1.1](https://img.shields.io/badge/Mqtt-%203.1.1-yellow)](https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/errata01/os/mqtt-v3.1.1-errata01-os-complete.html#_Toc442180822)
 ![QoS](https://img.shields.io/badge/QoS-0-red)
 [![Arduino](https://img.shields.io/badge/platform-Arduino-green)](https://www.arduino.cc/)
 ![C++](https://img.shields.io/badge/-C%2B%2B-blue)
 ![FreeRTOS](https://img.shields.io/badge/-FreeRTOS-blue)
-
 [![Release](https://img.shields.io/github/v/release/alexCajas/EmbeddedMqttBroker)](https://github.com/alexCajas/embeddedMqttBroker/releases/latest)
-
 [![arduino-library-badge](https://www.ardu-badge.com/badge/EmbeddedMqttBroker.svg?)](https://www.ardu-badge.com/EmbeddedMqttBroker)
-
 [![PlatformIO Registry](https://badges.registry.platformio.org/packages/alexCajas/library/EmbeddedMqttBroker.svg)](https://registry.platformio.org/libraries/alexCajas/EmbeddedMqttBroker)
 
 # EmbeddedMqttBroker
 
-This is a **Mqtt broker** developed for embedded devices, in **c++** programming language, **FreeRTOS**, **arduino core** and tested in an **Esp32**. **This project include** [https://github.com/alexCajas/WrapperFreeRTOS] to implement concurrent C++ objects.
+This is a **Mqtt broker** developed for embedded devices, in **c++** programming language, **FreeRTOS**  to use advanced multitasking capabilities and **arduino core**. Tested in an **Esp32** and **esp8266 wemos D1**. **This project include** [https://github.com/alexCajas/WrapperFreeRTOS] to implement concurrent C++ objects.
+
+**To use this library with esp8266** you have to use [esp8266RTOSArduCore](https://github.com/alexCajas/esp8266RTOSArduCore), it is a arduino core based on [esp8266_rtos_sdk](https://github.com/espressif/ESP8266_RTOS_SDK). **This library is not compatible with the official**  [NONOSDK esp8266 arduino core](https://github.com/esp8266/Arduino).
+
 
 ## Usage examples sketches
 
@@ -25,7 +26,7 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
 
 * You can install this, from arduino library manager, searching **embeddedmqttbroker**.
 
-* From platformIO using **alexcajas/EmbeddedMqttBroker@^1.0.1**
+* From platformIO using **alexcajas/EmbeddedMqttBroker@^1.0.6**
 
 * Or downloading this repo and [https://github.com/alexCajas/WrapperFreeRTOS] manually.
 
@@ -33,6 +34,7 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
 
 * main: Here is the last version of the project.
 * main-QOS0: Functional and tested version that only implements QOS 0.
+
 
 ## Can't see broker activity outputs on Serial monitor?
 
