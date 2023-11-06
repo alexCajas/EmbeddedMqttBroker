@@ -4,6 +4,11 @@ PublishAction::PublishAction(MqttClient* mqttClient, ReaderMqttPacket packetRead
     publishMqttMessage = new PublishMqttMessage(packetReaded);
 }
 
+PublishAction::~PublishAction(){
+    delete publishMqttMessage;
+}
+
+
 void PublishAction::doAction(){
     mqttClient->notifyPublishRecived(publishMqttMessage);
 }

@@ -418,7 +418,7 @@ class PublishAction: public Action{
          * PublishMqttMessage object.
          */
         PublishAction(MqttClient* mqttClient, ReaderMqttPacket packetReaded);
-    
+        ~PublishAction();
         /**
          * @brief Notify to Broker class a publish mqtt request
          * recevided from this client.
