@@ -87,14 +87,14 @@ void loop(){
     httpClient = server.available();
     if (!httpClient)
     {
-        vTaskDelay(10);
+        vTaskDelay(10/portTICK_PERIOD_MS);
         return;
     }
 
     boolean wait = true;
     while (!httpClient.available() and wait)
     {
-        vTaskDelay(300);
+        vTaskDelay(300/portTICK_PERIOD_MS);
         wait = false;
     }
 

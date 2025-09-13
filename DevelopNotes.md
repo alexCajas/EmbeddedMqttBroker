@@ -1,5 +1,24 @@
 # Notes of develop procces
 
+## v1.0.7-qos0
+
+### Todo
+
+
+
+### doing
+
+* improve memory manage:
+  * replace buffers String for uint8_t in all possible scenario
+  * review Trie and nodeTrie allocated memory
+  * improve sockets manage:
+    *  
+
+
+### done
+
+---
+
 ## v1.0.5-qoss0
 
 ### doing

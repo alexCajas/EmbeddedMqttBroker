@@ -4,9 +4,12 @@ using namespace mqttBrokerName;
 MqttClient::~MqttClient(){
   // delete action; // action is allocated when it is used
                     // and deleted after such use.
-            
-  tcpListenerTask->stop();
-  delete tcpListenerTask; 
+  
+  tcpConnection.stop();
+  if(tcpListenerTask){
+    delete tcpListenerTask; 
+  }
+  
 
   for(int i = 0; i < nodesToFree.size(); i++){
     nodesToFree[i]->unSubscribeMqttClient(this);
@@ -34,7 +37,10 @@ void MqttClient::publishMessage(PublishMqttMessage* publishMessage){
   uint8_t publishFlasgs = 0x6 & topics[i].getQos();
   publishMessage->setFlagsControlType(publishFlasgs);
   */
-  
+  if(!tcpConnection.connected()){
+    log_w("Client %i not connected. Message not sent.", this->clientId);
+    return;
+  }
   sendPacketByTcpConnection(publishMessage->buildMqttPacket());
 }
 

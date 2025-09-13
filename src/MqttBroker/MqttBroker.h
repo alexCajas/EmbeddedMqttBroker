@@ -147,8 +147,8 @@ private:
 
 
     /********************** Tcp communication ***************************/
-    void sendAckConnection(WiFiClient tcpClient);
-    void sendPacketByTcpConnection(WiFiClient client, String mqttPacket);
+    void sendAckConnection(WiFiClient &tcpClient);
+    void sendPacketByTcpConnection(WiFiClient &client, String mqttPacket);
 
 public:
 
@@ -650,6 +650,10 @@ public:
 
     void unSubscribeMqttClient(MqttClient * mqttClient){
         subscribedClients->erase(mqttClient->getId());
+    }
+
+    int getNumSubscribedClients(){
+        return subscribedClients->size();
     }
 };
 

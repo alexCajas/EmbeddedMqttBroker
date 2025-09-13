@@ -9,7 +9,8 @@ void TCPListenerTask::run(void * data){
     while(true){
         if(!mqttClient->checkConnection()){
             mqttClient->notifyDeleteClient();
+            this->stop();
         }
-        vTaskDelay(10);
+        vTaskDelay(10/portTICK_PERIOD_MS);
     }
 }
