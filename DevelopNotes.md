@@ -23,7 +23,8 @@
   * one client connecting and disconnecting ok!
   * several clients connecting and disconnecting ok!
   * send message simulation:
-    * create an ack mqtt message and a mqtt publish message.
+    * create an ack mqtt message -- done  
+    * a mqtt publish message. 
     * use this mqtt message when a client try to connect/send message.
   
 ### done

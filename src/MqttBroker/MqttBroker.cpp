@@ -41,9 +41,10 @@ MqttBroker::MqttBroker(uint16_t port){
 }
 
 
-void MqttBroker::addNewMqttClient(WiFiClient tcpClient, ConnectMqttMessage connectMessage){
+void MqttBroker::addNewMqttClient(WiFiClient tcpClient/*, ConnectMqttMessage connectMessage*/){
   log_i("before add client, free heap: %u", ESP.getFreeHeap());
-  MqttClient *mqttClient = new MqttClient(tcpClient, &deleteMqttClientQueue, numClient, connectMessage.getKeepAlive(),this);
+  uint16_t keepAlaive = 60; // default keepAlive time
+  MqttClient *mqttClient = new MqttClient(tcpClient, &deleteMqttClientQueue, numClient, keepAlaive,this);
   clients.insert(std::make_pair(numClient, mqttClient));
   mqttClient->startTcpListener();
   log_i("New client added: %i", mqttClient->getId());

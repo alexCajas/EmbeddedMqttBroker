@@ -6,6 +6,7 @@ NewClientListenerTask::NewClientListenerTask(MqttBroker *broker, uint16_t port) 
 {
     this->broker = broker;
     this->tcpServer = new WiFiServer(port);
+    this->ackPacket = messagesFactory.getAceptedAckConnectMessage().buildMqttPacket();
 }
 
 NewClientListenerTask::~NewClientListenerTask(){
@@ -46,12 +47,14 @@ void NewClientListenerTask::run(void *data){
 
     /*reading bytes from client, in this point Broker only recive and
      acept connect mqtt packets**/
-    ConnectMqttMessage connectMessage = messagesFactory.getConnectMqttMessage(client);
+      
+     // test if lack comes to messagesFactory.
+     //ConnectMqttMessage connectMessage = messagesFactory.getConnectMqttMessage(client);
 
-    if(!connectMessage.malFormedPacket() && !broker->isBrokerFullOfClients()){
+    //if(!connectMessage.malFormedPacket() && !broker->isBrokerFullOfClients()){
       sendAckConnection(client);
-      broker->addNewMqttClient(client, connectMessage);
-    }
+      broker->addNewMqttClient(client/*, connectMessage*/);
+    //}
   }
 }
 
@@ -63,8 +66,8 @@ void NewClientListenerTask::stopListen(){
 }
 
 void NewClientListenerTask::sendAckConnection(WiFiClient &tcpClient){
-  String ackPacket = messagesFactory.getAceptedAckConnectMessage().buildMqttPacket();
-  sendPacketByTcpConnection(tcpClient, ackPacket);
+  //String ackPacket = messagesFactory.getAceptedAckConnectMessage().buildMqttPacket();
+  sendPacketByTcpConnection(tcpClient, this->ackPacket);
 }
 
 void NewClientListenerTask::sendPacketByTcpConnection(WiFiClient &client, String mqttPacket){
