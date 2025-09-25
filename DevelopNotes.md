@@ -14,6 +14,14 @@
   * improve sockets manage:
     *  
 
+* To looking for memory lack:
+  * replace concurrent tasks to normal task
+  * simulate case with messages.
+
+* test:
+  * basic mqtt client free memory ok!
+  * one client connecting and disconnecting ok!
+  * several clients connecting and disconnecting ok!
 
 ### done
 
