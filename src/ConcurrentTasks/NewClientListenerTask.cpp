@@ -71,9 +71,10 @@ void NewClientListenerTask::sendAckConnection(WiFiClient &tcpClient){
 }
 
 void NewClientListenerTask::sendPacketByTcpConnection(WiFiClient &client, String mqttPacket){
-
+  log_i("before send packet by tcp connection, free heap: %u", ESP.getFreeHeap());
   uint8_t *buff = new uint8_t[mqttPacket.length()];
   mqttPacket.getBytes(buff, mqttPacket.length());
   client.write(buff, mqttPacket.length());
   delete[] buff;
+  log_i("after send packet by tcp connection, free heap: %u", ESP.getFreeHeap());
 }

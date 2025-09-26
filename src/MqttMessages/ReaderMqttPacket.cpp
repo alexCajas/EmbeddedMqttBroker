@@ -1,8 +1,24 @@
 #include "ReaderMqttPacket.h"
 
-ReaderMqttPacket::ReaderMqttPacket(){}
+
+ReaderMqttPacket::~ReaderMqttPacket(){
+    if (remainingPacket != NULL) {
+        log_i("Freeing remainingPacket at address: %p", remainingPacket);
+        free(remainingPacket);
+    }
+}
+
+ReaderMqttPacket::ReaderMqttPacket(){
+  remainingPacket = NULL;
+}
 
 void ReaderMqttPacket::readMqttPacket(WiFiClient client){
+ 
+  if (remainingPacket!= NULL) {
+      free(remainingPacket); // Free previous allocation if any
+      remainingPacket = NULL; // Reset pointer to avoid dangling pointer
+  }
+    
   // 1º reading fixed header.
   client.readBytes(fixedHeader,1);    
 
@@ -41,6 +57,11 @@ size_t ReaderMqttPacket::readRemainLengtSize(WiFiClient client){
 
 int ReaderMqttPacket::decodeTextField(int index, String* textField){
     
+    if (index + 2 > remainingLengt) {
+        log_e("Buffer overflow detectado al leer longitud de texto. index: %d, len: %d", index, remainingLengt);
+        return -1; // Retorna un error
+    }
+
     uint8_t msByte = remainingPacket[index];
     index++; // advance to lsByte
 
@@ -102,17 +123,11 @@ uint16_t ReaderMqttPacket::concatenateTwoBytes(uint8_t msByte, uint8_t lsByte){
 
 
 int ReaderMqttPacket::bytesToString(int index, size_t textFieldLengt,String*textField){
-    // reserving memory to copy the mqtt text field.
-    char* aux = (char*)malloc(textFieldLengt+1);
+    // NO uses malloc. Simplemente añade los caracteres al String.
+    // El objeto String gestionará su propia memoria interna.
+    for (size_t i = 0; i < textFieldLengt; i++) {
+        textField->concat((char)remainingPacket[index + i]);
+    }
     
-    // memcpy is necesary because reader object will be deleted.
-    memcpy(aux,&remainingPacket[index],textFieldLengt);
-    aux[textFieldLengt] = '\0';
-    //textField = new String(aux); --> memory is in the context of
-    // this method, the allocated memory is in the stack of this method
-    // and it is losed when the method ends..
-    
-    textField->concat(aux);
-    free(aux);
-    return index+textFieldLengt;
+    return index + textFieldLengt;
 }

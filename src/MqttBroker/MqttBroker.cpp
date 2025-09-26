@@ -74,15 +74,19 @@ void MqttBroker::stopBroker(){
 
 void MqttBroker::publishMessage(PublishMqttMessage * publishMqttMessage){
   log_i("before publish message, free heap: %u", ESP.getFreeHeap());
-  std::vector<int>* clientsSubscribedIds = topicTrie->getSubscribedMqttClients(publishMqttMessage->getTopic().getTopic());
+  //std::vector<int>* clientsSubscribedIds = topicTrie->getSubscribedMqttClients(publishMqttMessage->getTopic().getTopic());
 
   log_v("Publishing topic: %s", publishMqttMessage->getTopic().getTopic().c_str());
-  log_d("Publishing to %i client(s).", clientsSubscribedIds->size());
+  //log_d("Publishing to %i client(s).", clientsSubscribedIds->size());
   
-  for(std::size_t it = 0; it != clientsSubscribedIds->size(); it++){
-    clients[clientsSubscribedIds->at(it)]->publishMessage(publishMqttMessage);
+  //for(std::size_t it = 0; it != clientsSubscribedIds->size(); it++){
+   // clients[clientsSubscribedIds->at(it)]->publishMessage(publishMqttMessage);
+  //}
+  MqttClient * client = this->clients[0];
+  if (client != NULL){
+    client->publishMessage(publishMqttMessage);
   }
-  delete clientsSubscribedIds; // topicTrie->getSubscirbedMqttClient() don't free std::vector*
+  //delete clientsSubscribedIds; // topicTrie->getSubscirbedMqttClient() don't free std::vector*
                             // the user is responsible to free de memory allocated
 
   log_i("after publish message, free heap: %u", ESP.getFreeHeap());

@@ -6,7 +6,7 @@ FactoryMqttMessages::FactoryMqttMessages(){
 }
 
 MqttMessage FactoryMqttMessages::decodeMqttPacket(WiFiClient client){
-    ReaderMqttPacket reader;
+    
     reader.readMqttPacket(client);
     uint8_t type;
     uint8_t flagsControlType;
@@ -30,7 +30,7 @@ MqttMessage FactoryMqttMessages::decodeMqttPacket(WiFiClient client){
 }
 
 ConnectMqttMessage FactoryMqttMessages::getConnectMqttMessage(WiFiClient client){
-    ReaderMqttPacket reader;
+    
     reader.readMqttPacket(client);
     return ConnectMqttMessage(reader);    
 }

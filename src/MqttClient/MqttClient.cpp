@@ -61,7 +61,6 @@ uint8_t MqttClient::checkConnection(){
         if(tcpConnection.available()){
 
             // read mqtt packet
-            ReaderMqttPacket reader;
             reader.readMqttPacket(tcpConnection);
                         
             // get new action.

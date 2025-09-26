@@ -248,6 +248,7 @@ private:
     // client id in the scope of this broker.
     int clientId;
     WiFiClient tcpConnection;
+    ReaderMqttPacket reader;
 
     uint16_t keepAlive;
     unsigned long lastAlive;
@@ -417,7 +418,7 @@ class PublishAction: public Action{
          * @param packetReaded object where are all information to instance a
          * PublishMqttMessage object.
          */
-        PublishAction(MqttClient* mqttClient, ReaderMqttPacket packetReaded);
+        PublishAction(MqttClient* mqttClient, ReaderMqttPacket &packetReaded);
         ~PublishAction();
         /**
          * @brief Notify to Broker class a publish mqtt request
@@ -446,7 +447,7 @@ class SubscribeAction:public Action{
          * @param readedPacket object where are all information to build a SubscribeMqttMessage
          * object.
          */
-        SubscribeAction(MqttClient *mqttClient,ReaderMqttPacket readedPacket);
+        SubscribeAction(MqttClient *mqttClient,ReaderMqttPacket &readedPacket);
         ~SubscribeAction();
 
         void doAction() override;
@@ -471,7 +472,7 @@ class UnSubscribeAction:public Action{
          * @param readedPacket object where are all information to build a UnsubscribeMqttMessage
          * object. 
          */
-        UnSubscribeAction(MqttClient *mqttClient,ReaderMqttPacket packetReaded);
+        UnSubscribeAction(MqttClient *mqttClient,ReaderMqttPacket &packetReaded);
         ~UnSubscribeAction();
 
         void doAction() override;
@@ -552,7 +553,7 @@ public:
      *               Action object it is needed.
      * @return Action* 
      */
-    Action* getAction(MqttClient * mqttClient, ReaderMqttPacket packetReaded);
+    Action* getAction(MqttClient * mqttClient, ReaderMqttPacket &packetReaded);
 
 };
 

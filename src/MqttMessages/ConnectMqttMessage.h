@@ -35,7 +35,7 @@ class ConnectMqttMessage: public MqttMessage{
      * @param packetReaded Object where are all raw data readed
      *        from tcpConnection, this datas are in bytes.
      */
-    ConnectMqttMessage(ReaderMqttPacket packetReaded);
+    ConnectMqttMessage(ReaderMqttPacket &packetReaded);
     
     uint16_t getKeepAlive(){
         return keepAlive;

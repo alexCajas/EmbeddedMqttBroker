@@ -1,6 +1,6 @@
 #include "SubscribeMqttMessage.h"
 
-SubscribeMqttMessage::SubscribeMqttMessage(ReaderMqttPacket packetReaded):MqttMessage(SUBSCRIBE,RESERVERTO2){
+SubscribeMqttMessage::SubscribeMqttMessage(ReaderMqttPacket &packetReaded):MqttMessage(SUBSCRIBE,RESERVERTO2){
     int index = 0;
     messageId = 0;
 
@@ -9,7 +9,7 @@ SubscribeMqttMessage::SubscribeMqttMessage(ReaderMqttPacket packetReaded):MqttMe
     index = decodeTopics(index,packetReaded);
 }
 
-int SubscribeMqttMessage::decodeTopics(int index, ReaderMqttPacket packetReaded){
+int SubscribeMqttMessage::decodeTopics(int index, ReaderMqttPacket &packetReaded){
     
     while (index < packetReaded.getRemainingPacketLength() ){
         MqttTocpic topic;

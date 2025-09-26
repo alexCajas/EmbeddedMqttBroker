@@ -1,6 +1,6 @@
 #include "UnsubscribeMqttMessage.h"
 
-UnsubscribeMqttMessage::UnsubscribeMqttMessage(ReaderMqttPacket packetReaded):MqttMessage(packetReaded.getFixedHeader()){
+UnsubscribeMqttMessage::UnsubscribeMqttMessage(ReaderMqttPacket &packetReaded):MqttMessage(packetReaded.getFixedHeader()){
     int index = 0;
     messageId = 0;
 
@@ -11,7 +11,7 @@ UnsubscribeMqttMessage::UnsubscribeMqttMessage(ReaderMqttPacket packetReaded):Mq
     index = decodeTopics(index, packetReaded);
 }
 
-int UnsubscribeMqttMessage::decodeTopics(int index, ReaderMqttPacket packetReaded){
+int UnsubscribeMqttMessage::decodeTopics(int index, ReaderMqttPacket &packetReaded){
     
     while (index < packetReaded.getRemainingPacketLength() ){
         MqttTocpic topic;

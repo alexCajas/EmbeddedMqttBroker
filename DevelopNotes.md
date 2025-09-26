@@ -18,6 +18,11 @@
   * replace concurrent tasks to normal task
   * simulate case with messages.
 
+* some notes:
+  * It was found some reserved memory with not free, but there wasn't the main problem.
+  * see test_publis_mqtt_client_connection_lack:
+    * it only use publish mqtt client and a wificlient and you can see lack memory here.
+
 * test:
   * basic mqtt client free memory ok!
   * one client connecting and disconnecting ok!

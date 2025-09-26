@@ -30,7 +30,7 @@ private:
      * @return int the index where the topics fields ends and start the next
      *         mqtt field.
      */
-    int decodeTopics(int index, ReaderMqttPacket packetReaded);
+    int decodeTopics(int index, ReaderMqttPacket &packetReaded);
  
 
 public:
@@ -40,7 +40,7 @@ public:
      * 
      * @param packetReaded object where is all mqtt packet raw data.
      */
-    SubscribeMqttMessage(ReaderMqttPacket packetReaded);
+    SubscribeMqttMessage(ReaderMqttPacket &packetReaded);
 
     std::vector<MqttTocpic> getTopics(){
         return topics;

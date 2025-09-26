@@ -1,6 +1,6 @@
 #include "ConnectMqttMessage.h"
 
-ConnectMqttMessage::ConnectMqttMessage(ReaderMqttPacket packetReaded):MqttMessage(packetReaded.getFixedHeader()){
+ConnectMqttMessage::ConnectMqttMessage(ReaderMqttPacket &packetReaded):MqttMessage(packetReaded.getFixedHeader()){
     int index = 0;
     /**
      * index is necesary because it is not know where start the next

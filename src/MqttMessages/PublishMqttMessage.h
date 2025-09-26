@@ -43,7 +43,7 @@ public:
      * 
      * @param packetReaded object who contains bytes readed from tcp connection. 
      */
-    PublishMqttMessage(ReaderMqttPacket packetReaded);
+    PublishMqttMessage(ReaderMqttPacket &packetReaded);
     
     /**
      * @brief Construct a new Publish Mqtt Message object indicating

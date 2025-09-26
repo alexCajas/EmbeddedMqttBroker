@@ -12,6 +12,8 @@
 
 
 class FactoryMqttMessages {
+    private:
+    ReaderMqttPacket reader;
     public:
         FactoryMqttMessages();
         MqttMessage decodeMqttPacket(WiFiClient client);

@@ -4,6 +4,11 @@ PublishMqttMessage::PublishMqttMessage(uint8_t publishFlags):MqttMessage(PUBLISH
 
 }
 
+PublishMqttMessage::PublishMqttMessage(uint8_t publishFlags, MqttTocpic topic):MqttMessage(PUBLISH,publishFlags){
+    this->setFlagsControlType(publishFlags);
+    this->topic = topic;
+}
+
 String PublishMqttMessage::buildMqttPacket(){
     
     /**
@@ -39,7 +44,7 @@ String PublishMqttMessage::buildMqttPacket(){
     return mqttPacket;
 }
 
-PublishMqttMessage::PublishMqttMessage(ReaderMqttPacket packetReaded):MqttMessage(packetReaded.getFixedHeader()){
+PublishMqttMessage::PublishMqttMessage(ReaderMqttPacket &packetReaded):MqttMessage(packetReaded.getFixedHeader()){
     int index = 0;
     messageId = 0;
 
