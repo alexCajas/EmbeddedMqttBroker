@@ -22,6 +22,8 @@
   * It was found some reserved memory with not free, but there wasn't the main problem.
   * see test_publis_mqtt_client_connection_lack:
     * it only use publish mqtt client and a wificlient and you can see lack memory here.
+  * Found lack using WifiClient wiht 1.0.6 core version, in last core verison (3.2.0) is fixed:
+    * The lack happend when a client connect and disconnect fast, like defect behavior of mosquitto mqtt client. 
 
 * test:
   * basic mqtt client free memory ok!
