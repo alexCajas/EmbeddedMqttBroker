@@ -70,9 +70,6 @@ class ReaderMqttPacket {
 
         ReaderMqttPacket();
         ~ReaderMqttPacket();
-         // Prohibir la copia para evitar el doble free
-        ReaderMqttPacket(const ReaderMqttPacket&) = delete;
-        ReaderMqttPacket& operator=(const ReaderMqttPacket&) = delete;
         
         /**
          * @brief Read bytes stream that represent a mqtt message packet.

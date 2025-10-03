@@ -41,25 +41,24 @@ MqttBroker::MqttBroker(uint16_t port){
 }
 
 
-void MqttBroker::addNewMqttClient(WiFiClient tcpClient/*, ConnectMqttMessage connectMessage*/){
-  log_i("before add client, free heap: %u", ESP.getFreeHeap());
-  uint16_t keepAlaive = 60; // default keepAlive time
-  MqttClient *mqttClient = new MqttClient(tcpClient, &deleteMqttClientQueue, numClient, keepAlaive,this);
+void MqttBroker::addNewMqttClient(WiFiClient tcpClient, ConnectMqttMessage connectMessage){
+  
+  MqttClient *mqttClient = new MqttClient(tcpClient, &deleteMqttClientQueue, numClient, connectMessage.getKeepAlive(),this);
   clients.insert(std::make_pair(numClient, mqttClient));
   mqttClient->startTcpListener();
   log_i("New client added: %i", mqttClient->getId());
   log_v("%i clients active.", clients.size());
   numClient++;
-  log_i("after add client, free heap: %u", ESP.getFreeHeap());
+  
 }
 
 void MqttBroker::deleteMqttClient(int clientId){
-    log_i("before delete client, free heap: %u", ESP.getFreeHeap());
+    
     log_i("Deleting client: %i", clientId);
     MqttClient * client = clients[clientId];
     clients.erase(clientId);
     delete client;
-    log_i("after delete client, free heap: %u", ESP.getFreeHeap());
+    
 }
 
 void MqttBroker::startBroker(){
@@ -73,28 +72,23 @@ void MqttBroker::stopBroker(){
 
 
 void MqttBroker::publishMessage(PublishMqttMessage * publishMqttMessage){
-  log_i("before publish message, free heap: %u", ESP.getFreeHeap());
-  //std::vector<int>* clientsSubscribedIds = topicTrie->getSubscribedMqttClients(publishMqttMessage->getTopic().getTopic());
+  
+  std::vector<int>* clientsSubscribedIds = topicTrie->getSubscribedMqttClients(publishMqttMessage->getTopic().getTopic());
 
   log_v("Publishing topic: %s", publishMqttMessage->getTopic().getTopic().c_str());
-  //log_d("Publishing to %i client(s).", clientsSubscribedIds->size());
+  log_d("Publishing to %i client(s).", clientsSubscribedIds->size());
   
-  //for(std::size_t it = 0; it != clientsSubscribedIds->size(); it++){
-   // clients[clientsSubscribedIds->at(it)]->publishMessage(publishMqttMessage);
-  //}
-  MqttClient * client = this->clients[0];
-  if (client != NULL){
-    client->publishMessage(publishMqttMessage);
+  for(std::size_t it = 0; it != clientsSubscribedIds->size(); it++){
+    clients[clientsSubscribedIds->at(it)]->publishMessage(publishMqttMessage);
   }
-  //delete clientsSubscribedIds; // topicTrie->getSubscirbedMqttClient() don't free std::vector*
+
+  delete clientsSubscribedIds; // topicTrie->getSubscirbedMqttClient() don't free std::vector*
                             // the user is responsible to free de memory allocated
 
-  log_i("after publish message, free heap: %u", ESP.getFreeHeap());
 }                  
 
 void MqttBroker::SubscribeClientToTopic(SubscribeMqttMessage * subscribeMqttMessage, MqttClient* client){
   
-  log_i("before subscribe to topic, free heap: %u", ESP.getFreeHeap());
   std::vector<MqttTocpic> topics = subscribeMqttMessage->getTopics();
   NodeTrie *node;
   for(int i = 0; i < topics.size(); i++){
@@ -102,5 +96,5 @@ void MqttBroker::SubscribeClientToTopic(SubscribeMqttMessage * subscribeMqttMess
     client->addNode(node);
     log_i("Client %i subscribed to %s.", client->getId(), topics[i].getTopic().c_str());
   }
-  log_i("after subscribe to topic, free heap: %u", ESP.getFreeHeap());
+  
 }

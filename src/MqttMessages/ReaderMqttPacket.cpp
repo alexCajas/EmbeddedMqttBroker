@@ -3,7 +3,6 @@
 
 ReaderMqttPacket::~ReaderMqttPacket(){
     if (remainingPacket != NULL) {
-        log_i("Freeing remainingPacket at address: %p", remainingPacket);
         free(remainingPacket);
     }
 }
@@ -57,11 +56,6 @@ size_t ReaderMqttPacket::readRemainLengtSize(WiFiClient client){
 
 int ReaderMqttPacket::decodeTextField(int index, String* textField){
     
-    if (index + 2 > remainingLengt) {
-        log_e("Buffer overflow detectado al leer longitud de texto. index: %d, len: %d", index, remainingLengt);
-        return -1; // Retorna un error
-    }
-
     uint8_t msByte = remainingPacket[index];
     index++; // advance to lsByte
 
@@ -123,8 +117,7 @@ uint16_t ReaderMqttPacket::concatenateTwoBytes(uint8_t msByte, uint8_t lsByte){
 
 
 int ReaderMqttPacket::bytesToString(int index, size_t textFieldLengt,String*textField){
-    // NO uses malloc. Simplemente añade los caracteres al String.
-    // El objeto String gestionará su propia memoria interna.
+
     for (size_t i = 0; i < textFieldLengt; i++) {
         textField->concat((char)remainingPacket[index + i]);
     }

@@ -14,10 +14,10 @@
 class FactoryMqttMessages {
     private:
     ReaderMqttPacket reader;
+    
     public:
         FactoryMqttMessages();
         MqttMessage decodeMqttPacket(WiFiClient client);
-        MqttMessage decodeMqttPacket(ReaderMqttPacket reader);
         AckConnectMqttMessage getAceptedAckConnectMessage();
         PingResMqttMessage getPingResMessage();
         PublishMqttMessage getPublishMqttMessage(uint8_t publishFlags);

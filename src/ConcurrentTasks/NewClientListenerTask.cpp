@@ -6,7 +6,7 @@ NewClientListenerTask::NewClientListenerTask(MqttBroker *broker, uint16_t port) 
 {
     this->broker = broker;
     this->tcpServer = new WiFiServer(port);
-    this->ackPacket = messagesFactory.getAceptedAckConnectMessage().buildMqttPacket();
+    
 }
 
 NewClientListenerTask::~NewClientListenerTask(){
@@ -48,13 +48,12 @@ void NewClientListenerTask::run(void *data){
     /*reading bytes from client, in this point Broker only recive and
      acept connect mqtt packets**/
       
-     // test if lack comes to messagesFactory.
-     //ConnectMqttMessage connectMessage = messagesFactory.getConnectMqttMessage(client);
+     ConnectMqttMessage connectMessage = messagesFactory.getConnectMqttMessage(client);
 
-    //if(!connectMessage.malFormedPacket() && !broker->isBrokerFullOfClients()){
+    if(!connectMessage.malFormedPacket() && !broker->isBrokerFullOfClients()){
       sendAckConnection(client);
-      broker->addNewMqttClient(client/*, connectMessage*/);
-    //}
+      broker->addNewMqttClient(client, connectMessage);
+    }
   }
 }
 
@@ -66,15 +65,14 @@ void NewClientListenerTask::stopListen(){
 }
 
 void NewClientListenerTask::sendAckConnection(WiFiClient &tcpClient){
-  //String ackPacket = messagesFactory.getAceptedAckConnectMessage().buildMqttPacket();
-  sendPacketByTcpConnection(tcpClient, this->ackPacket);
+  String ackPacket = messagesFactory.getAceptedAckConnectMessage().buildMqttPacket();
+  sendPacketByTcpConnection(tcpClient, ackPacket);
 }
 
 void NewClientListenerTask::sendPacketByTcpConnection(WiFiClient &client, String mqttPacket){
-  log_i("before send packet by tcp connection, free heap: %u", ESP.getFreeHeap());
-  uint8_t *buff = new uint8_t[mqttPacket.length()];
-  mqttPacket.getBytes(buff, mqttPacket.length());
-  client.write(buff, mqttPacket.length());
-  delete[] buff;
-  log_i("after send packet by tcp connection, free heap: %u", ESP.getFreeHeap());
+
+  uint8_t buff[mqttPacket.length()]; 
+  mqttPacket.getBytes(buff,mqttPacket.length());
+  client.write(buff,mqttPacket.length());
+  
 }
