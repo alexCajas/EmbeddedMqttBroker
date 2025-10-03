@@ -25,6 +25,7 @@
   * Found lack using WifiClient wiht 1.0.6 core version, in last core verison (3.2.0) is fixed:
     * The lack happend when a client connect and disconnect fast, like defect behavior of mosquitto mqtt client. 
   * Test with 3.2.0 and current state of broker look stable and without memory lack. But remain test with all mqtt packets actives.
+  * Some crash detected, freeMqttTask need some memory, now 3*1024 is enought
 
 * test:
   * basic mqtt client free memory ok!
