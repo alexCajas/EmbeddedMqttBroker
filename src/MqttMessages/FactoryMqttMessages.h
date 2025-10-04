@@ -17,11 +17,11 @@ class FactoryMqttMessages {
     
     public:
         FactoryMqttMessages();
-        MqttMessage decodeMqttPacket(WiFiClient client);
+        MqttMessage decodeMqttPacket(WiFiClient &client);
         AckConnectMqttMessage getAceptedAckConnectMessage();
         PingResMqttMessage getPingResMessage();
         PublishMqttMessage getPublishMqttMessage(uint8_t publishFlags);
-        ConnectMqttMessage getConnectMqttMessage(WiFiClient client);
+        ConnectMqttMessage getConnectMqttMessage(WiFiClient &client);
 };
 
 #endif

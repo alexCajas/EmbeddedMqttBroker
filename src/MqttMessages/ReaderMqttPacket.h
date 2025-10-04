@@ -38,7 +38,7 @@ class ReaderMqttPacket {
          * @param client who is sendig the packet.
          * @return size_t remaining size of mqtt packet to read.
          */
-        size_t readRemainLengtSize(WiFiClient client);
+        size_t readRemainLengtSize(WiFiClient &client);
 
 
         /****************** decode ultils*************************/
@@ -76,7 +76,7 @@ class ReaderMqttPacket {
          * 
          * @param client how is sending the mqtt packet. 
          */
-        void readMqttPacket(WiFiClient client);
+        void readMqttPacket(WiFiClient &client);
 
         /**
          * @brief Get the Fixed Header like uint8_t.
@@ -110,7 +110,7 @@ class ReaderMqttPacket {
          * @param client 
          * @return MqttMessage 
          */
-        MqttMessage decodeMqttPacket(WiFiClient client);
+        MqttMessage decodeMqttPacket(WiFiClient &client);
         
 
     /*************************decode utils******************/

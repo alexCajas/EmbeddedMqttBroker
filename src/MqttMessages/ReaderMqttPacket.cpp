@@ -11,7 +11,7 @@ ReaderMqttPacket::ReaderMqttPacket(){
   remainingPacket = NULL;
 }
 
-void ReaderMqttPacket::readMqttPacket(WiFiClient client){
+void ReaderMqttPacket::readMqttPacket(WiFiClient &client){
  
   if (remainingPacket!= NULL) {
       free(remainingPacket); // Free previous allocation if any
@@ -29,7 +29,7 @@ void ReaderMqttPacket::readMqttPacket(WiFiClient client){
   client.readBytes(remainingPacket,remainingLengt);  
 }
 
-size_t ReaderMqttPacket::readRemainLengtSize(WiFiClient client){
+size_t ReaderMqttPacket::readRemainLengtSize(WiFiClient &client){
   int multiplier = 1;
   size_t value = 0;
   uint8_t encodedByte = 0;

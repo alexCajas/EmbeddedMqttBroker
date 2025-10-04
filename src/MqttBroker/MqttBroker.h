@@ -87,7 +87,7 @@ public:
      * @param tcpClient socket where is the connection to this client.
      * @param connectMessage object where are all information to the accepetd connection and his client.
      */
-    void addNewMqttClient(WiFiClient tcpClient, ConnectMqttMessage connectMessage);
+    void addNewMqttClient(WiFiClient &tcpClient, ConnectMqttMessage connectMessage);
     
     /**
      * @brief delete and free a MqttClient object.

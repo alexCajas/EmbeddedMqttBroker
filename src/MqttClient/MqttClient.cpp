@@ -2,8 +2,6 @@
 using namespace mqttBrokerName;
 /***************************** MqttClient class *************************/
 MqttClient::~MqttClient(){
-  // delete action; // action is allocated when it is used
-                    // and deleted after such use.
   
   tcpConnection.stop();
   if(tcpListenerTask){

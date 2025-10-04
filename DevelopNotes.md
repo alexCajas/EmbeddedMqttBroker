@@ -2,6 +2,12 @@
 
 ## v1.0.7-qos0
 
+### Memory lacks:
+
+* there was a problem with arudino core 1.0.6 for esp32 and WiFiClient objetc, the core have a memory lack when create a several WiFiCients objects:
+  * This issue was fixed, current core 3.2.0 don't have this problem.
+* If you have a stack canary watch dog in core 1, FreeMqttClientTask need more heap, actualy it has 3*1024. 
+
 ### Todo
 
 

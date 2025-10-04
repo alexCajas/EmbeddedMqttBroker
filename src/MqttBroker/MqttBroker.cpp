@@ -41,7 +41,7 @@ MqttBroker::MqttBroker(uint16_t port){
 }
 
 
-void MqttBroker::addNewMqttClient(WiFiClient tcpClient, ConnectMqttMessage connectMessage){
+void MqttBroker::addNewMqttClient(WiFiClient &tcpClient, ConnectMqttMessage connectMessage){
   
   MqttClient *mqttClient = new MqttClient(tcpClient, &deleteMqttClientQueue, numClient, connectMessage.getKeepAlive(),this);
   clients.insert(std::make_pair(numClient, mqttClient));
