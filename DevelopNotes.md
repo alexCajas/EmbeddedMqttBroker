@@ -10,15 +10,19 @@
 
 ### Todo
 
-
+* review Trie and nodeTrie allocated memory
 
 ### doing
 
+
+
+### done
+
+#### 06/10/2025
+
 * improve memory manage:
-  * replace buffers String for uint8_t in all possible scenario
-  * review Trie and nodeTrie allocated memory
   * improve sockets manage:
-    *  
+
 
 * To looking for memory lack:
   * replace concurrent tasks to normal task
@@ -41,8 +45,6 @@
     * create an ack mqtt message -- done  
     * a mqtt publish message. 
     * use this mqtt message when a client try to connect/send message.
-  
-### done
 
 ---
 
