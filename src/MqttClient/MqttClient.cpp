@@ -2,29 +2,46 @@
 using namespace mqttBrokerName;
 /***************************** MqttClient class *************************/
 MqttClient::~MqttClient(){
-  
-  tcpConnection.stop();
-  if(tcpListenerTask){
-    delete tcpListenerTask; 
-  }
-  
-
+    
   for(int i = 0; i < nodesToFree.size(); i++){
     nodesToFree[i]->unSubscribeMqttClient(this);
   }  
 }
 
 
-MqttClient::MqttClient(WiFiClient tcpConnection, QueueHandle_t * deleteMqttClientQueue,  int clientId, uint16_t keepAlive,MqttBroker * broker){
+MqttClient::MqttClient(AsyncClient *tcpConnection, QueueHandle_t * deleteMqttClientQueue,  int clientId, uint16_t keepAlive,MqttBroker * broker){
   this->clientId = clientId;
   this->keepAlive = keepAlive;
   this->tcpConnection = tcpConnection;
   this->deleteMqttClientQueue = deleteMqttClientQueue;
   this->broker = broker;
 
-  this->tcpListenerTask = new TCPListenerTask(this);
-  this->tcpListenerTask->setCore(1);
   lastAlive = millis();
+
+
+  this->reader = new ReaderMqttPacket([this](){
+      log_i("Mqtt Packet ready to be processed.");
+      this->proccessOnMqttPacket();
+      
+    });
+
+  this->tcpConnection.onDisconnect([this](AsyncClient*client){
+      log_i("Client %i disconnected.", this->clientId);
+      this->notifyDeleteClient();
+    });
+
+}
+
+void MqttClient::proccessOnMqttPacket(){
+         
+  // get new action.
+  ActionFactory factory;
+  action = factory.getAction(this,reader);
+  action->doAction();
+
+  // free Action allocated memory.
+  delete action;  
+  lastAlive = now;
 }
 
 void MqttClient::publishMessage(PublishMqttMessage* publishMessage){
@@ -91,10 +108,4 @@ void MqttClient::sendPingRes(){
   String resPacket = messagesFactory.getPingResMessage().buildMqttPacket();
   log_v("sending ping response to %i.", this->clientId);
   sendPacketByTcpConnection(resPacket);
-}
-
-
-/****************************** TaskTcpListener ********************/
-void MqttClient::startTcpListener(){
-  tcpListenerTask->start();
 }

@@ -11,9 +11,11 @@
 ### Todo
 
 * review Trie and nodeTrie allocated memory
+* keep alive is not implement yet for async version
 
 ### doing
 
+* migrating mqtt client to asynctcp version
 
 
 ### done

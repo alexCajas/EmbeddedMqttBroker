@@ -247,8 +247,8 @@ class MqttClient
 private:
     // client id in the scope of this broker.
     int clientId;
-    WiFiClient tcpConnection;
-    ReaderMqttPacket reader;
+    AsyncClient *tcpConnection;
+    ReaderMqttPacket *reader;
 
     uint16_t keepAlive;
     unsigned long lastAlive;
@@ -257,7 +257,6 @@ private:
     Action *action;
     QueueHandle_t *deleteMqttClientQueue;
     
-    TCPListenerTask *tcpListenerTask;
 
     // vector where are, all nodes where is present the current
     // client, is used to make it easy to release 
@@ -287,7 +286,7 @@ public:
      * @param keepAlive max time that the broker wait to a mqtt client, if mqtt client doesn't send
      * any message to the broker in this time, broker will close the tcp connection.
      */
-    MqttClient(WiFiClient tcpConnection, QueueHandle_t * deleteMqttClientQueue, int clientId, uint16_t keepAlive, MqttBroker * broker);
+    MqttClient(AsyncClient *tcpConnection, QueueHandle_t * deleteMqttClientQueue, int clientId, uint16_t keepAlive, MqttBroker * broker);
 
     ~MqttClient();
 
@@ -360,12 +359,6 @@ public:
             tcpConnection.stop();
         }
     }
-
-    /**
-     * @brief Start the task that listen on tcp port, wating for a new mqtt
-     * message.
-     */
-    void startTcpListener();
 
     void addNode(NodeTrie *node){
         nodesToFree.push_back(node);
