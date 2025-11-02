@@ -3,6 +3,7 @@
 
 #include <WiFi.h> 
 #include <map>
+#include <AsyncTCP.h>
 #include "WrapperFreeRTOS.h"
 #include "MqttMessages/FactoryMqttMessages.h"
 #include "MqttMessages/SubscribeMqttMessage.h"
@@ -270,9 +271,22 @@ private:
      * but tcpConnection can only send bytes buffer, String have
      * a method to get byteBuffers from him self.
      * 
+     * The current implementation is aceptable for qos0, because broker lose the message if it doesn't has enought space
+     * improve this part to qos1 and qos2.
+     * 
      * @param mqttPacket to send over tcpConnection.
      */
     void sendPacketByTcpConnection(String mqttPacket);
+
+    /**
+     * @brief Callback to process mqtt packet readed from tcpConnection.
+     */
+    void proccessOnMqttPacket();
+    
+    /** 
+     * @brief Initialize all tcpConnection callbacks.
+     */
+    void initTCPCallbacks();
     
 public:
 
@@ -354,11 +368,7 @@ public:
      * @brief close tcpConnection.
      * 
      */
-    void disconnect(){
-        if(tcpConnection.connected()){
-            tcpConnection.stop();
-        }
-    }
+    void disconnect();
 
     void addNode(NodeTrie *node){
         nodesToFree.push_back(node);
