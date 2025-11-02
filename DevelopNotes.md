@@ -13,10 +13,10 @@
 * review Trie and nodeTrie allocated memory
 * keep alive is not implement yet for async version
 * MqttClient::sendMqttPacket doesn't support qos1/qos2
-* Migrate MqttBroker to asyncTCP
+
 ### doing
 
-* Migrating MqttMessages to use new ReaderMqttPacket
+* Migrate MqttBroker to asyncTCP
 
 
 ### done
@@ -24,6 +24,7 @@
 #### 01/11/2025
 
 * migrating mqtt client to asynctcp version
+* Migrating MqttMessages to use new ReaderMqttPacket
 
 #### 06/10/2025
 

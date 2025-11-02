@@ -228,6 +228,10 @@ public:
      * @return int the index after the two bytes.
      */
     int decodeTwoBytes(int index, uint16_t *variable);
+
+    bool isPacketReady(){
+        return _state == PACKET_READY;
+    }
 };
 
 #endif //READERMQTTPACKET_H

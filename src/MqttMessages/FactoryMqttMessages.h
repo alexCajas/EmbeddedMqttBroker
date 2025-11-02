@@ -9,7 +9,7 @@
 #include "ReaderMqttPacket.h"
 #include "PublishMqttMessage.h"
 #include "NotMqttMessage.h"
-
+#include "ReaderMqttPacket.h"
 
 class FactoryMqttMessages {
     private:
@@ -17,11 +17,11 @@ class FactoryMqttMessages {
     
     public:
         FactoryMqttMessages();
-        MqttMessage decodeMqttPacket(WiFiClient &client);
+        MqttMessage decodeMqttPacket(ReaderMqttPacket &reader);
         AckConnectMqttMessage getAceptedAckConnectMessage();
         PingResMqttMessage getPingResMessage();
         PublishMqttMessage getPublishMqttMessage(uint8_t publishFlags);
-        ConnectMqttMessage getConnectMqttMessage(WiFiClient &client);
+        ConnectMqttMessage getConnectMqttMessage(ReaderMqttPacket &reader);
 };
 
 #endif

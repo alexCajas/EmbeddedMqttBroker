@@ -73,7 +73,7 @@ void MqttClient::proccessOnMqttPacket(){
          
   // get new action.
   ActionFactory factory;
-  action = factory.getAction(this,reader);
+  action = factory.getAction(this,*reader);
   action->doAction();
 
   // free Action allocated memory.

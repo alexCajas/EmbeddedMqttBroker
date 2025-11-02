@@ -5,9 +5,13 @@ FactoryMqttMessages::FactoryMqttMessages(){
 
 }
 
-MqttMessage FactoryMqttMessages::decodeMqttPacket(WiFiClient &client){
+MqttMessage FactoryMqttMessages::decodeMqttPacket(ReaderMqttPacket &reader){
     
-    reader.readMqttPacket(client);
+    if(!reader.isPacketReady()){
+        log_e("No mqtt packet ready to decode.");
+        return NotMqttMessage();
+    }
+
     uint8_t type;
     uint8_t flagsControlType;
     type = reader.getFixedHeader() >> 4;
@@ -29,9 +33,8 @@ MqttMessage FactoryMqttMessages::decodeMqttPacket(WiFiClient &client){
     return NotMqttMessage();
 }
 
-ConnectMqttMessage FactoryMqttMessages::getConnectMqttMessage(WiFiClient &client){
+ConnectMqttMessage FactoryMqttMessages::getConnectMqttMessage(ReaderMqttPacket &reader){
     
-    reader.readMqttPacket(client);
     return ConnectMqttMessage(reader);    
 }
 
