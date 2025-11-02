@@ -44,18 +44,19 @@ class MqttBroker
 {
 private:
     
+    AsyncServer* server;
     uint16_t port;
     uint16_t maxNumClients;
     // unique id in the scope of this broker.
     int numClient = 0;
 
-    NewClientListenerTask *newClientListenerTask;
     FreeMqttClientTask *freeMqttClientTask;
     Trie *topicTrie;
 
 
     /***************************** Queue to sincronize Tasks ****************/
     QueueHandle_t deleteMqttClientQueue;
+    SemaphoreHandle_t _clientSetMutex;
 
     /************************* clients structure **************************/
     std::map<int,MqttClient*> clients;
@@ -233,6 +234,11 @@ class Action{
 };
 
 
+enum MqttClientState {
+    STATE_PENDING,  // Esperando CONNECT válido
+    STATE_CONNECTED // Autenticado y operando
+};
+
 /**
  * @brief Class to abstract a tcp client of this server and his
  * fetaures like:
@@ -250,13 +256,14 @@ private:
     int clientId;
     AsyncClient *tcpConnection;
     ReaderMqttPacket *reader;
+    MqttClientState _state;
+    QueueHandle_t *deleteMqttClientQueue;
 
     uint16_t keepAlive;
     unsigned long lastAlive;
 
     FactoryMqttMessages messagesFactory;
     Action *action;
-    QueueHandle_t *deleteMqttClientQueue;
     
 
     // vector where are, all nodes where is present the current
@@ -282,12 +289,18 @@ private:
      * @brief Callback to process mqtt packet readed from tcpConnection.
      */
     void proccessOnMqttPacket();
+
+    /**
+     * @brief Callback to process connect mqtt packet readed from tcpConnection. The first
+     * mqtt packet that broker receive from a client must be a connect mqtt packet.
+     */
+    void processOnConnectMqttPacket();
     
     /** 
      * @brief Initialize all tcpConnection callbacks.
      */
     void initTCPCallbacks();
-    
+
 public:
 
     /**
@@ -328,7 +341,7 @@ public:
      */
     void notifyDeleteClient(){
         log_v("Notify broker to delete client: %i", clientId);
-        xQueueSend((*deleteMqttClientQueue), &clientId, portMAX_DELAY);
+        xQueueSend((*deleteMqttClientQueue), &clientId, 0); // no blocking
     }
 
     /**
@@ -373,6 +386,8 @@ public:
     void addNode(NodeTrie *node){
         nodesToFree.push_back(node);
     }
+
+    MqttClientState getState() { return _state; }
 };
 
 /**

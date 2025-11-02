@@ -1,4 +1,6 @@
 #include "MqttBroker/MqttBroker.h"
+#include "ConnectMqttMessage.h"
+
 using namespace mqttBrokerName;
 /***************************** MqttClient class *************************/
 MqttClient::~MqttClient(){
@@ -27,6 +29,7 @@ MqttClient::MqttClient(AsyncClient *tcpConnection, QueueHandle_t * deleteMqttCli
   this->tcpConnection = tcpConnection;
   this->deleteMqttClientQueue = deleteMqttClientQueue;
   this->broker = broker;
+  _state = STATE_PENDING;
 
   lastAlive = millis();
   this->action = NULL;
@@ -34,7 +37,7 @@ MqttClient::MqttClient(AsyncClient *tcpConnection, QueueHandle_t * deleteMqttCli
 
   this->reader = new ReaderMqttPacket([this](){
       log_v("Client %i: Mqtt Packet ready to be processed.", this->clientId);
-      this->proccessOnMqttPacket();
+      this->processOnConnectMqttPacket();
       
     });
 
@@ -68,6 +71,48 @@ void MqttClient::initTCPCallbacks(){
     this->notifyDeleteClient();
   });
 }
+
+
+void MqttClient::proccessOnMqttPacket(){
+    
+    uint8_t type = reader->getFixedHeader() >> 4;
+
+    if (type == CONNECT) {
+        
+        ConnectMqttMessage connectMessage(*reader); 
+        
+        if (!connectMessage.malFormedPacket()) {
+            
+            log_i(" %s: Handshake OK. state: CONNECTED.", 
+                  tcpConnection->remoteIP().toString().c_str());
+
+            
+            this->_state = STATE_CONNECTED;
+            this->setKeepAlive(connectMessage.getKeepAlive());
+            this->lastAlive = millis();
+
+            
+            String ack = messagesFactory.getAceptedAckConnectMessage().buildMqttPacket();
+            sendPacketByTcpConnection(ack);
+            
+            this->reader->setCallback([this](){
+                this->proccessOnMqttPacket();
+            });
+
+        } else {
+            // Malformed CONNECT
+            log_w("Client %s: CONNECT mal formado. Desconectando.", 
+                  tcpConnection->remoteIP().toString().c_str());
+            disconnect();
+        }
+    } else {
+        // not CONNECT as first packet
+        log_w("Client %s: Expected CONNECT as first packet but received type %u. Disconnecting.",
+              tcpConnection->remoteIP().toString().c_str());
+        disconnect();
+    }
+}
+
 
 void MqttClient::proccessOnMqttPacket(){
          

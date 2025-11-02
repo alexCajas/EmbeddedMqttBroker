@@ -2,9 +2,6 @@
 using namespace mqttBrokerName;
 MqttBroker::~MqttBroker(){
     
-    // delete listenerTask
-    newClientListenerTask->stopListen();
-    delete newClientListenerTask;
 
     // delete freeMqttClientTask
     freeMqttClientTask->stop();
@@ -18,14 +15,22 @@ MqttBroker::~MqttBroker(){
     }  
 
     // delete trie
-    delete topicTrie;  
+    delete topicTrie; 
+    
+    if (server) {
+        delete server;
+    }
+
+    vQueueDelete(deleteMqttClientQueue);
+    vSemaphoreDelete(clientSetMutex);
 }
 
 MqttBroker::MqttBroker(uint16_t port){
     this->port = port;
     this->maxNumClients = MAXNUMCLIENTS;
     topicTrie = new Trie();
-    
+    this->server = new AsyncServer(port);
+
     /************* setup queues ***************************/
     deleteMqttClientQueue = xQueueCreate( 1, sizeof(int) );
     if(deleteMqttClientQueue == NULL){
@@ -33,11 +38,15 @@ MqttBroker::MqttBroker(uint16_t port){
         ESP.restart();
     }
 
+    clientSetMutex = xSemaphoreCreateMutex();
+    if (clientSetMutex == NULL) {
+        log_e("Failed to create clientSetMutex!");
+        ESP.restart();
+    }
+
     /************ setup Tasks *****************************/
-    this->newClientListenerTask = new NewClientListenerTask(this,port);
-    this->newClientListenerTask->setCore(0);
     this->freeMqttClientTask = new FreeMqttClientTask(this,&deleteMqttClientQueue);
-    this->freeMqttClientTask->setCore(1);
+    this->freeMqttClientTask->setCore(0);
 }
 
 
@@ -62,14 +71,38 @@ void MqttBroker::deleteMqttClient(int clientId){
 }
 
 void MqttBroker::startBroker(){
-    newClientListenerTask->start();
+    if (server == NULL) {
+      return
+    };
+
+    server->onClient([this](void* arg, AsyncClient* client) {
+        this->handleNewClient(client);
+    }, NULL);
+    server->begin();
+
     freeMqttClientTask->start();
 }
 
 void MqttBroker::stopBroker(){
-    newClientListenerTask->stopListen();
+    if (server) {
+          server->end();
+    }
+    if (freeMqttClientTask) {
+        freeMqttClientTask->stop();
+    }  
 }
 
+
+void MqttBroker::handleNewClient(AsyncClient *client) {
+    if (isBrokerFullOfClients()) {
+        log_w("Broker is full. Rejecting new client from %s", 
+              client->remoteIP().toString().c_str());
+        client->stop();
+        return;
+    }
+    
+    addNewMqttClient(client);
+}
 
 void MqttBroker::publishMessage(PublishMqttMessage * publishMqttMessage){
   

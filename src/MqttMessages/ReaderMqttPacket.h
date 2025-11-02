@@ -232,6 +232,14 @@ public:
     bool isPacketReady(){
         return _state == PACKET_READY;
     }
+
+    /*
+     * @brief Set a new callback function to be called when a full packet is ready.
+     * @param onPacketReadyCallback The new function to call.
+     */
+    void setCallback(std::function<void(void)> onPacketReadyCallback) {
+        _onPacketReadyCallback = onPacketReadyCallback;
+    }
 };
 
 #endif //READERMQTTPACKET_H
