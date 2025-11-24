@@ -18,6 +18,7 @@ MqttClient::~MqttClient(){
       if (tcpConnection->connected()) {
           tcpConnection->close(true); 
       }
+      delete tcpConnection;
       tcpConnection = NULL;
   }
 }
