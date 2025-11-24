@@ -32,6 +32,20 @@ class NodeTrie;
 class TCPListenerTask;
 class Action;
 
+
+enum BrokerEventType {
+    EVENT_PUBLISH,
+    EVENT_SUBSCRIBE
+};
+
+struct BrokerEvent {
+    BrokerEventType type;
+    MqttClient* client;      // Quién originó el evento (o quién se suscribe)
+    String topic;            // Tópico involucrado
+    String payload;          // Payload (solo para Publish)
+    // uint8_t qos;          // (Opcional para futuro)
+};
+
 /**
  * @brief This class listen to new mqttClients, accepting or refusing his
  * connect request, also release allocated memory when a mqttClient disconnects.
@@ -57,10 +71,11 @@ private:
     /***************************** Queue to sincronize Tasks ****************/
     QueueHandle_t deleteMqttClientQueue;
     SemaphoreHandle_t clientSetMutex;
+    QueueHandle_t brokerEventQueue;
 
     /************************* clients structure **************************/
     std::map<int,MqttClient*> clients;
-    
+
 public:
 
     /**
@@ -73,6 +88,10 @@ public:
 
     void handleNewClient(AsyncClient *client);
     void queueClientForDeletion(int clientId);
+    void processBrokerEvents();
+        // Métodos internos que hacen el trabajo real (ejecutados por el Worker)
+    void _publishMessageImpl(String topic, String payload);
+    void _subscribeClientImpl(String topic, MqttClient* client);
     
     /**
      * @brief Start the listen on port, waiting to new clients.
@@ -154,13 +173,14 @@ public:
 class CheckMqttClientTask : public Task {
 private:
     MqttBroker *broker;
-
+    QueueHandle_t *brokerEventQueue;
+    QueueHandle_t *deleteMqttClientQueue;
 public:
     /**
      * @brief Constructor del Worker.
      * @param broker Puntero al broker para invocar sus métodos de limpieza.
      */
-    CheckMqttClientTask(MqttBroker *broker);
+    CheckMqttClientTask(MqttBroker *broker, QueueHandle_t *brokerEventQueue, QueueHandle_t *deleteMqttClientQueue);
     
     /**
      * @brief El bucle infinito del Worker.

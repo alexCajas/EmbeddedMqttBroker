@@ -20,6 +20,9 @@
 
   * There aren't workers for hard task:
     * worker for check keep alive y delete operations ok
+    * worker for publish and send mqttpacket:
+      * now try to use struct and events, need to pass PublishMqttMessage in queue.
+    * worker for readerMqttPacket.
 
 ### done
 

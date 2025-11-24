@@ -16,10 +16,16 @@ MqttBroker::MqttBroker(uint16_t port) {
         ESP.restart();
     }
 
+    brokerEventQueue = xQueueCreate(50, sizeof(BrokerEvent*)); 
+    if (!brokerEventQueue) {
+        log_e("Failed to create brokerEventQueue");
+        ESP.restart();
+    }
+
     clientSetMutex = xSemaphoreCreateMutex();
 
     // Instanciamos el Worker, pero no lo arrancamos aún
-    this->checkMqttClientTask = new CheckMqttClientTask(this);
+    this->checkMqttClientTask = new CheckMqttClientTask(this, &brokerEventQueue, &deleteMqttClientQueue);
     // Configuramos el Worker para correr en el Core 0 (dejando el Core 1 para AsyncTCP/Loop)
     this->checkMqttClientTask->setCore(0);
 }
@@ -151,30 +157,96 @@ void MqttBroker::processKeepAlives() {
 }
 
 
-void MqttBroker::publishMessage(PublishMqttMessage * publishMqttMessage){
-  
-  std::vector<int>* clientsSubscribedIds = topicTrie->getSubscribedMqttClients(publishMqttMessage->getTopic().getTopic());
+void MqttBroker::publishMessage(PublishMqttMessage * msg) {
+    // NO procesamos aquí. Creamos un evento.
+    BrokerEvent* event = new BrokerEvent;
+    event->type = BrokerEventType::EVENT_PUBLISH; // PUBLISH
+    event->topic = msg->getTopic().getTopic();
+    event->payload = msg->getTopic().getPayLoad();
+    event->client = nullptr; // No es relevante para publish global
 
-  log_v("Publishing topic: %s", publishMqttMessage->getTopic().getTopic().c_str());
-  log_d("Publishing to %i client(s).", clientsSubscribedIds->size());
-  
-  for(std::size_t it = 0; it != clientsSubscribedIds->size(); it++){
-    clients[clientsSubscribedIds->at(it)]->publishMessage(publishMqttMessage);
-  }
+    // Encolar (No bloqueante o espera mínima)
+    if (xQueueSend(brokerEventQueue, &event, 0) != pdPASS) {
+        log_w("Broker Queue Full! Dropping publish message.");
+        delete event; // Evitar memory leak si la cola está llena
+    }
+}
 
-  delete clientsSubscribedIds; // topicTrie->getSubscirbedMqttClient() don't free std::vector*
-                            // the user is responsible to free de memory allocated
+void MqttBroker::SubscribeClientToTopic(SubscribeMqttMessage * msg, MqttClient* client) {
+    std::vector<MqttTocpic> topics = msg->getTopics();
+    
+    // Creamos un evento por cada tópico (o podrías adaptar el struct para vector)
+    for(int i = 0; i < topics.size(); i++){
+        BrokerEvent* event = new BrokerEvent;
+        event->type = BrokerEventType::EVENT_SUBSCRIBE; // SUBSCRIBE
+        event->topic = topics[i].getTopic();
+        event->client = client;
+        
+        if (xQueueSend(brokerEventQueue, &event, 0) != pdPASS) {
+            log_w("Broker Queue Full! Dropping subscribe.");
+            delete event;
+        }
+    }
+}
 
-}                  
 
-void MqttBroker::SubscribeClientToTopic(SubscribeMqttMessage * subscribeMqttMessage, MqttClient* client){
-  
-  std::vector<MqttTocpic> topics = subscribeMqttMessage->getTopics();
-  NodeTrie *node;
-  for(int i = 0; i < topics.size(); i++){
-    node = topicTrie->subscribeToTopic(topics[i].getTopic(),client);
-    client->addNode(node);
-    log_i("Client %i subscribed to %s.", client->getId(), topics[i].getTopic().c_str());
-  }
-  
+
+// ------------------------------------------------------------
+// 2. MÉTODOS DEL WORKER (Consumidores - Pesados - Corren en Core 0)
+// ------------------------------------------------------------
+
+void MqttBroker::processBrokerEvents() {
+    BrokerEvent* event;
+    // Procesamos hasta vaciar la cola (o un límite por ciclo)
+    while (xQueueReceive(brokerEventQueue, &event, 0) == pdPASS) {
+        
+        if (event->type == 0) { // PUBLISH
+            _publishMessageImpl(event->topic, event->payload);
+        } 
+        else if (event->type == 1) { // SUBSCRIBE
+            _subscribeClientImpl(event->topic, event->client);
+        }
+
+        // Importante: Borrar el evento de memoria dinámica una vez procesado
+        delete event; 
+    }
+}
+
+// Aquí movemos la lógica pesada que tenías antes
+void MqttBroker::_publishMessageImpl(String topic, String payload) {
+    
+    // NOTA: Como estamos en Core 0, y addNewMqttClient está en Core 1,
+    // necesitamos proteger la lectura del mapa 'clients' con Mutex si vamos a acceder a él.
+    
+    // 1. Trie Lookup (Lectura)
+    // Si el Trie no está protegido por su propio mutex interno, 
+    // debemos asegurarnos de que nadie escriba en él (Subscribe) a la vez.
+    // Como hemos movido Subscribe a este mismo hilo (Core 0), ¡NO NECESITAMOS MUTEX PARA EL TRIE!
+    // Esta es la gran ventaja del Worker Pattern: serializamos el acceso.
+    
+    std::vector<int>* clientsSubscribedIds = topicTrie->getSubscribedMqttClients(topic);
+
+    log_v("Publishing topic: %s", topic.c_str());
+    log_d("Publishing to %i client(s).", clientsSubscribedIds->size());
+    // 2. Envío a clientes
+    // Aquí sí necesitamos el clientSetMutex porque estamos leyendo el mapa 'clients'
+    // y 'addNewMqttClient' (Core 1) podría estar escribiendo en él.
+    if (xSemaphoreTake(clientSetMutex, portMAX_DELAY) == pdTRUE) {
+        for(size_t it = 0; it != clientsSubscribedIds->size(); it++){
+            clients[clientsSubscribedIds->at(it)]->publishMessage(publishMqttMessage);
+        }
+        xSemaphoreGive(clientSetMutex);
+    }
+
+    delete clientsSubscribedIds;
+}
+
+void MqttBroker::_subscribeClientImpl(String topic, MqttClient* client) {
+    // Ya no necesitamos Mutex para el Trie porque solo este hilo (Worker) lo toca.
+    // (A menos que uses el Trie en otro lugar fuera del Worker).
+    
+    NodeTrie *node = topicTrie->subscribeToTopic(topic, client);
+    client->addNode(node); // OJO: client->addNode debe ser thread-safe o protegido
+    
+    log_i("Worker: Client %i subscribed to %s", client->getId(), topic.c_str());
 }
