@@ -18,7 +18,8 @@
 
 * Migrate MqttBroker to asyncTCP:
 
-  * There aren't workers for hard task
+  * There aren't workers for hard task:
+    * worker for check keep alive y delete operations ok
 
 ### done
 

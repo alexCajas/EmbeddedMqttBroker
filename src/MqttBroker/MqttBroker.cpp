@@ -17,10 +17,21 @@ MqttBroker::MqttBroker(uint16_t port) {
     }
 
     clientSetMutex = xSemaphoreCreateMutex();
+
+    // Instanciamos el Worker, pero no lo arrancamos aún
+    this->checkMqttClientTask = new CheckMqttClientTask(this);
+    // Configuramos el Worker para correr en el Core 0 (dejando el Core 1 para AsyncTCP/Loop)
+    this->checkMqttClientTask->setCore(0);
 }
 
 MqttBroker::~MqttBroker() {
+    
     stopBroker();
+
+    if (checkMqttClientTask) {
+        delete checkMqttClientTask; // Esto llama a stop() internamente en WrapperFreeRTOS
+    }
+    
     if (server) delete server;
     if (topicTrie) delete topicTrie;
     
@@ -45,11 +56,14 @@ void MqttBroker::startBroker() {
     }, NULL);
 
     server->begin();
+    checkMqttClientTask->start();
     log_i("Async MqttBroker started on port %u", port);
+    
 }
 
 void MqttBroker::stopBroker() {
     if (server) server->end();
+    if (checkMqttClientTask) checkMqttClientTask->stop();
 }
 
 void MqttBroker::handleNewClient(AsyncClient *client) {
@@ -87,31 +101,6 @@ void MqttBroker::queueClientForDeletion(int clientId) {
     xQueueSend(deleteMqttClientQueue, &clientId, 0);
 }
 
-void MqttBroker::loop() {
-    int clientIdToDelete;
-    
-    // 1. Procesamos la cola de borrado (Prioridad Alta)
-    // Usamos un while para vaciar la cola lo más rápido posible
-    while (xQueueReceive(deleteMqttClientQueue, &clientIdToDelete, 0) == pdPASS) {
-        deleteMqttClient(clientIdToDelete);
-    }
-
-    // 2. Gestionamos el KeepAlive (Prioridad Normal)
-    unsigned long now = millis();
-
-    // ADVERTENCIA: Iterar un mapa sin protección en un entorno multi-hilo es arriesgado.
-    // Pero como asumimos que addNewMqttClient (escritura) y loop (lectura) 
-    // pueden ocurrir a la vez, DEBERÍAMOS proteger esta lectura también.
-    
-    if (xSemaphoreTake(clientSetMutex, 10 / portTICK_PERIOD_MS) == pdTRUE) { // Espera breve
-        for (auto const& [id, client] : clients) {
-            if (client->getState() == STATE_CONNECTED) {
-                client->checkKeepAlive(now);
-            }
-        }
-        xSemaphoreGive(clientSetMutex);
-    }
-}
 
 void MqttBroker::deleteMqttClient(int clientId) {
     MqttClient* clientToDelete = nullptr;
@@ -137,6 +126,30 @@ void MqttBroker::deleteMqttClient(int clientId) {
         log_v("Client %i object deleted.", clientId);
     }
 }
+
+
+void MqttBroker::processDeletions() {
+    int clientIdToDelete;
+    // Usamos '0' ticks de espera. Si hay algo, lo sacamos. Si no, seguimos.
+    while (xQueueReceive(deleteMqttClientQueue, &clientIdToDelete, 0) == pdPASS) {
+        deleteMqttClient(clientIdToDelete);
+    }
+}
+
+void MqttBroker::processKeepAlives() {
+    unsigned long now = millis();
+
+    // Proteger lectura porque addNewMqttClient (Core 1) puede escribir a la vez
+    if (xSemaphoreTake(clientSetMutex, 10 / portTICK_PERIOD_MS) == pdTRUE) {
+        for (auto const& [id, client] : clients) {
+            if (client->getState() == STATE_CONNECTED) {
+                client->checkKeepAlive(now);
+            }
+        }
+        xSemaphoreGive(clientSetMutex);
+    }
+}
+
 
 void MqttBroker::publishMessage(PublishMqttMessage * publishMqttMessage){
   

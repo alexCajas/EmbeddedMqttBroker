@@ -10,7 +10,6 @@
 #include "MqttMessages/UnsubscribeMqttMessage.h"
 #include "MqttMessages/PublishMqttMessage.h"
 
-
 namespace mqttBrokerName{
 
 // Depends of your architecture, max num clients is exactly the 
@@ -24,6 +23,7 @@ namespace mqttBrokerName{
 // try to increasing this value.
 #define MAXWAITTOMQTTPACKET 500 
 
+class CheckMqttClientTask;
 class NewClientListenerTask;
 class FreeMqttClientTask;
 class MqttClient;
@@ -50,7 +50,7 @@ private:
     // unique id in the scope of this broker.
     int numClient = 0;
 
-    FreeMqttClientTask *freeMqttClientTask;
+    CheckMqttClientTask *checkMqttClientTask;
     Trie *topicTrie;
 
 
@@ -73,7 +73,7 @@ public:
 
     void handleNewClient(AsyncClient *client);
     void queueClientForDeletion(int clientId);
-    void loop();
+    
     /**
      * @brief Start the listen on port, waiting to new clients.
      */
@@ -134,10 +134,40 @@ public:
     bool isBrokerFullOfClients(){
         return (clients.size() == maxNumClients);
     }
+
+    /**
+     * @brief Procesa la cola de eliminación.
+     * Llamado por BrokerMaintenanceTask.
+     */
+    void processDeletions();
+
+    /**
+     * @brief Verifica timeouts de clientes.
+     * Llamado por BrokerMaintenanceTask.
+     */
+    void processKeepAlives();
 };
 
 
 /*********************** Tasks **************************/
+
+class CheckMqttClientTask : public Task {
+private:
+    MqttBroker *broker;
+
+public:
+    /**
+     * @brief Constructor del Worker.
+     * @param broker Puntero al broker para invocar sus métodos de limpieza.
+     */
+    CheckMqttClientTask(MqttBroker *broker);
+    
+    /**
+     * @brief El bucle infinito del Worker.
+     */
+    void run(void *data) override;
+};
+
 
 /**
  * @brief This class listen on port waiting to a new client, if connect mqtt
