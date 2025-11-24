@@ -17,7 +17,8 @@
 ### doing
 
 * Migrate MqttBroker to asyncTCP:
-  * MqttClient doesn't has notifiDeleteClient implementation.
+  * MqttClient doesn't has notifiDeleteClient implementation:
+    * allmost implemented, there is issues with memory
   * There aren't workers for hard task
 
 ### done

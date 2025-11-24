@@ -90,34 +90,51 @@ void MqttBroker::queueClientForDeletion(int clientId) {
 void MqttBroker::loop() {
     int clientIdToDelete;
     
-    // 1. Procesamos la cola de borrado (prioridad alta)
+    // 1. Procesamos la cola de borrado (Prioridad Alta)
+    // Usamos un while para vaciar la cola lo más rápido posible
     while (xQueueReceive(deleteMqttClientQueue, &clientIdToDelete, 0) == pdPASS) {
         deleteMqttClient(clientIdToDelete);
     }
 
-    // 2. Gestionamos el KeepAlive (prioridad normal)
+    // 2. Gestionamos el KeepAlive (Prioridad Normal)
     unsigned long now = millis();
 
-    // Recorremos el mapa de clientes
-    for (auto const& [id, client] : clients) {
-        
-        // Solo comprobamos KeepAlive si el cliente ya completó el Handshake
-        if (client->getState() == STATE_CONNECTED) {
-            client->checkKeepAlive(now);
+    // ADVERTENCIA: Iterar un mapa sin protección en un entorno multi-hilo es arriesgado.
+    // Pero como asumimos que addNewMqttClient (escritura) y loop (lectura) 
+    // pueden ocurrir a la vez, DEBERÍAMOS proteger esta lectura también.
+    
+    if (xSemaphoreTake(clientSetMutex, 10 / portTICK_PERIOD_MS) == pdTRUE) { // Espera breve
+        for (auto const& [id, client] : clients) {
+            if (client->getState() == STATE_CONNECTED) {
+                client->checkKeepAlive(now);
+            }
         }
+        xSemaphoreGive(clientSetMutex);
     }
 }
 
 void MqttBroker::deleteMqttClient(int clientId) {
+    MqttClient* clientToDelete = nullptr;
+
+    // --- INICIO SECCIÓN CRÍTICA ---
     if (xSemaphoreTake(clientSetMutex, portMAX_DELAY) == pdTRUE) {
         auto it = clients.find(clientId);
         if (it != clients.end()) {
-            MqttClient* client = it->second;
-            clients.erase(it);
-            delete client; // Llama a ~MqttClient -> clean subscriptions -> free reader
-            log_i("Client %i deleted safely.", clientId);
+            clientToDelete = it->second; // Guardamos el puntero
+            clients.erase(it);           // Lo sacamos del mapa
+            log_i("Client %i removed from map.", clientId);
+        } else {
+            log_w("Client %i not found in map (maybe already deleted).", clientId);
         }
         xSemaphoreGive(clientSetMutex);
+    }
+    // --- FIN SECCIÓN CRÍTICA ---
+
+    // Borramos el objeto FUERA del Mutex. 
+    // Esto previene deadlocks si el destructor tarda mucho o usa otros recursos.
+    if (clientToDelete != nullptr) {
+        delete clientToDelete; 
+        log_v("Client %i object deleted.", clientId);
     }
 }
 
