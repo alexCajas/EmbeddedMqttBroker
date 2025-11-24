@@ -19,7 +19,7 @@
 * Migrate MqttBroker to asyncTCP:
   * MqttClient doesn't has keepAlive implementation
   * MqttClient doesn't has notifiDeleteClient implementation.
-
+  * There aren't workers for hard task
 
 ### done
 
