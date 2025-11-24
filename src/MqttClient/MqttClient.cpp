@@ -1,5 +1,5 @@
 #include "MqttBroker/MqttBroker.h"
-#include "ConnectMqttMessage.h"
+#include "MqttMessages/ConnectMqttMessage.h"
 
 using namespace mqttBrokerName;
 /***************************** MqttClient class *************************/
@@ -73,7 +73,7 @@ void MqttClient::initTCPCallbacks(){
 }
 
 
-void MqttClient::proccessOnMqttPacket(){
+void MqttClient::processOnConnectMqttPacket(){
     
     uint8_t type = reader->getFixedHeader() >> 4;
 

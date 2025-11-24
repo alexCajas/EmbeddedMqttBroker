@@ -16,7 +16,9 @@
 
 ### doing
 
-* Migrate MqttBroker to asyncTCP
+* Migrate MqttBroker to asyncTCP:
+  * MqttClient doesn't has keepAlive implementation
+  * MqttClient doesn't has notifiDeleteClient implementation.
 
 
 ### done

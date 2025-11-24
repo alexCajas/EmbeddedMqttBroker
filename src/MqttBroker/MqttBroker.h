@@ -340,8 +340,9 @@ public:
      * 
      */
     void notifyDeleteClient(){
-        log_v("Notify broker to delete client: %i", clientId);
-        xQueueSend((*deleteMqttClientQueue), &clientId, 0); // no blocking
+        //log_v("Notify broker to delete client: %i", clientId);
+        //xQueueSend((*deleteMqttClientQueue), &clientId, 0); // no blocking
+        Serial.println("To implemnte notifyDeleteClient")
     }
 
     /**
