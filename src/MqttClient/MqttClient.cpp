@@ -181,3 +181,29 @@ void MqttClient::disconnect(){
       // which in turn calls notifyDeleteClient().
   }
 }
+
+bool MqttClient::checkKeepAlive(unsigned long currentMillis){
+    
+    // 1. Si keepAlive es 0, el mecanismo está desactivado según spec MQTT
+    if (this->keepAlive == 0) {
+        return true; 
+    }
+
+    // 2. Calculamos el tiempo límite en milisegundos.
+    // La especificación MQTT dice que el broker debe permitir 1.5 veces el keepAlive.
+    // keepAlive está en segundos, así que multiplicamos por 1000 y luego por 1.5 = 1500.
+    unsigned long timeoutMs = (unsigned long)this->keepAlive * 1500;
+
+    // 3. Comprobamos si ha pasado el tiempo (maneja desbordamiento de millis automáticamente)
+    if ((currentMillis - this->lastAlive) > timeoutMs) {
+        log_w("Client %i: KeepAlive Timeout (%u s). Desconectando.", this->clientId, this->keepAlive);
+        
+        // Iniciamos la desconexión. 
+        // Esto activará onDisconnect -> broker->queueClientForDeletion
+        disconnect(); 
+        
+        return false; // El cliente ha muerto
+    }
+
+    return true; // El cliente sigue vivo
+}

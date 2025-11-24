@@ -395,6 +395,10 @@ public:
         this->keepAlive = keepAlive;
     }
 
+    
+    bool checkKeepAlive(unsigned long currentMillis);
+    
+
     MqttClientState getState() { return _state; }
 };
 

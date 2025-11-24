@@ -89,9 +89,22 @@ void MqttBroker::queueClientForDeletion(int clientId) {
 
 void MqttBroker::loop() {
     int clientIdToDelete;
-    // Procesamos la cola de borrado de forma NO bloqueante
+    
+    // 1. Procesamos la cola de borrado (prioridad alta)
     while (xQueueReceive(deleteMqttClientQueue, &clientIdToDelete, 0) == pdPASS) {
         deleteMqttClient(clientIdToDelete);
+    }
+
+    // 2. Gestionamos el KeepAlive (prioridad normal)
+    unsigned long now = millis();
+
+    // Recorremos el mapa de clientes
+    for (auto const& [id, client] : clients) {
+        
+        // Solo comprobamos KeepAlive si el cliente ya completó el Handshake
+        if (client->getState() == STATE_CONNECTED) {
+            client->checkKeepAlive(now);
+        }
     }
 }
 
