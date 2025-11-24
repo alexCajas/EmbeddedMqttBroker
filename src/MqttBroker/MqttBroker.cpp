@@ -1,107 +1,111 @@
 #include "MqttBroker.h"
 using namespace mqttBrokerName;
-MqttBroker::~MqttBroker(){
+
+
+MqttBroker::MqttBroker(uint16_t port) {
+    this->port = port;
+    this->maxNumClients = MAXNUMCLIENTS;
     
+    topicTrie = new Trie();
+    server = new AsyncServer(port);
 
-    // delete freeMqttClientTask
-    freeMqttClientTask->stop();
-    delete freeMqttClientTask;
+    // Queue para borrado diferido (Imprescindible para evitar crash)
+    deleteMqttClientQueue = xQueueCreate(10, sizeof(int));
+    if (!deleteMqttClientQueue) {
+        log_e("Failed to create delete queue");
+        ESP.restart();
+    }
 
+    clientSetMutex = xSemaphoreCreateMutex();
+}
+
+MqttBroker::~MqttBroker() {
+    stopBroker();
+    if (server) delete server;
+    if (topicTrie) delete topicTrie;
+    
+    // Limpiar clientes
     // delete all MqttClients
     std::map<int, MqttClient *>::iterator it;
     for (it = clients.begin(); it != clients.end(); it++)
     {
         delete it->second;
-    }  
-
-    // delete trie
-    delete topicTrie; 
-    
-    if (server) {
-        delete server;
     }
-
+    clients.clear();
+    
     vQueueDelete(deleteMqttClientQueue);
     vSemaphoreDelete(clientSetMutex);
 }
 
-MqttBroker::MqttBroker(uint16_t port){
-    this->port = port;
-    this->maxNumClients = MAXNUMCLIENTS;
-    topicTrie = new Trie();
-    this->server = new AsyncServer(port);
-
-    /************* setup queues ***************************/
-    deleteMqttClientQueue = xQueueCreate( 1, sizeof(int) );
-    if(deleteMqttClientQueue == NULL){
-        log_e("Fail to create queue.");
-        ESP.restart();
-    }
-
-    clientSetMutex = xSemaphoreCreateMutex();
-    if (clientSetMutex == NULL) {
-        log_e("Failed to create clientSetMutex!");
-        ESP.restart();
-    }
-
-    /************ setup Tasks *****************************/
-    this->freeMqttClientTask = new FreeMqttClientTask(this,&deleteMqttClientQueue);
-    this->freeMqttClientTask->setCore(0);
-}
-
-
-void MqttBroker::addNewMqttClient(WiFiClient &tcpClient, ConnectMqttMessage connectMessage){
-  
-  MqttClient *mqttClient = new MqttClient(tcpClient, &deleteMqttClientQueue, numClient, connectMessage.getKeepAlive(),this);
-  clients.insert(std::make_pair(numClient, mqttClient));
-  mqttClient->startTcpListener();
-  log_i("New client added: %i", mqttClient->getId());
-  log_v("%i clients active.", clients.size());
-  numClient++;
-  
-}
-
-void MqttBroker::deleteMqttClient(int clientId){
-    
-    log_i("Deleting client: %i", clientId);
-    MqttClient * client = clients[clientId];
-    clients.erase(clientId);
-    delete client;
-    
-}
-
-void MqttBroker::startBroker(){
-    if (server == NULL) {
-      return
-    };
+void MqttBroker::startBroker() {
+    if (!server) return;
 
     server->onClient([this](void* arg, AsyncClient* client) {
         this->handleNewClient(client);
     }, NULL);
+
     server->begin();
-
-    freeMqttClientTask->start();
+    log_i("Async MqttBroker started on port %u", port);
 }
 
-void MqttBroker::stopBroker(){
-    if (server) {
-          server->end();
-    }
-    if (freeMqttClientTask) {
-        freeMqttClientTask->stop();
-    }  
+void MqttBroker::stopBroker() {
+    if (server) server->end();
 }
-
 
 void MqttBroker::handleNewClient(AsyncClient *client) {
+    // Lectura rápida de capacidad (asumimos seguro para lectura simple)
     if (isBrokerFullOfClients()) {
-        log_w("Broker is full. Rejecting new client from %s", 
-              client->remoteIP().toString().c_str());
+        log_w("Broker full. Rejecting %s", client->remoteIP().toString().c_str());
         client->stop();
         return;
     }
-    
     addNewMqttClient(client);
+}
+
+void MqttBroker::addNewMqttClient(AsyncClient *client) {
+    
+    if (xSemaphoreTake(clientSetMutex, portMAX_DELAY) == pdTRUE) {
+        numClient++;
+        int newId = numClient;
+
+        // Instanciamos MqttClient (él configura sus propios callbacks)
+        MqttClient *mqttClient = new MqttClient(client, newId, this);
+        
+        clients.insert(std::make_pair(newId, mqttClient));
+        
+        xSemaphoreGive(clientSetMutex);
+        
+        log_i("New AsyncClient accepted. ID: %i, IP: %s", newId, client->remoteIP().toString().c_str());
+    } else {
+        log_e("Mutex error. Rejecting client.");
+        client->stop();
+    }
+}
+
+void MqttBroker::queueClientForDeletion(int clientId) {
+    // Ponemos el ID en la cola para borrarlo luego en el loop()
+    xQueueSend(deleteMqttClientQueue, &clientId, 0);
+}
+
+void MqttBroker::loop() {
+    int clientIdToDelete;
+    // Procesamos la cola de borrado de forma NO bloqueante
+    while (xQueueReceive(deleteMqttClientQueue, &clientIdToDelete, 0) == pdPASS) {
+        deleteMqttClient(clientIdToDelete);
+    }
+}
+
+void MqttBroker::deleteMqttClient(int clientId) {
+    if (xSemaphoreTake(clientSetMutex, portMAX_DELAY) == pdTRUE) {
+        auto it = clients.find(clientId);
+        if (it != clients.end()) {
+            MqttClient* client = it->second;
+            clients.erase(it);
+            delete client; // Llama a ~MqttClient -> clean subscriptions -> free reader
+            log_i("Client %i deleted safely.", clientId);
+        }
+        xSemaphoreGive(clientSetMutex);
+    }
 }
 
 void MqttBroker::publishMessage(PublishMqttMessage * publishMqttMessage){

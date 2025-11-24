@@ -56,7 +56,7 @@ private:
 
     /***************************** Queue to sincronize Tasks ****************/
     QueueHandle_t deleteMqttClientQueue;
-    SemaphoreHandle_t _clientSetMutex;
+    SemaphoreHandle_t clientSetMutex;
 
     /************************* clients structure **************************/
     std::map<int,MqttClient*> clients;
@@ -342,7 +342,7 @@ public:
     void notifyDeleteClient(){
         //log_v("Notify broker to delete client: %i", clientId);
         //xQueueSend((*deleteMqttClientQueue), &clientId, 0); // no blocking
-        Serial.println("To implemnte notifyDeleteClient")
+        Serial.println("To implemnte notifyDeleteClient");
     }
 
     /**
