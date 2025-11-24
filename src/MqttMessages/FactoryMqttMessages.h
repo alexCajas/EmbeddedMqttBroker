@@ -13,7 +13,7 @@
 
 class FactoryMqttMessages {
     private:
-    ReaderMqttPacket reader;
+
     
     public:
         FactoryMqttMessages();

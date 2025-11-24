@@ -23,11 +23,11 @@ MqttClient::~MqttClient(){
 }
 
 
-MqttClient::MqttClient(AsyncClient *tcpConnection, QueueHandle_t * deleteMqttClientQueue,  int clientId, uint16_t keepAlive,MqttBroker * broker){
+MqttClient::MqttClient(AsyncClient *tcpConnection,  int clientId,MqttBroker * broker){
   this->clientId = clientId;
-  this->keepAlive = keepAlive;
+  //this->keepAlive = keepAlive;
   this->tcpConnection = tcpConnection;
-  this->deleteMqttClientQueue = deleteMqttClientQueue;
+  //this->deleteMqttClientQueue = deleteMqttClientQueue;
   this->broker = broker;
   _state = STATE_PENDING;
 
@@ -46,29 +46,31 @@ MqttClient::MqttClient(AsyncClient *tcpConnection, QueueHandle_t * deleteMqttCli
 
 void MqttClient::initTCPCallbacks(){
 
-  this->tcpConnection->onData([this](void* data, size_t len) {
+  // 1. onData: Requiere 4 argumentos (arg, client, data, len)
+  this->tcpConnection->onData([this](void* arg, AsyncClient* client, void* data, size_t len) {
     log_v("Client %i: Received %u bytes", this->clientId, len);
     if(this->reader) {
         this->reader->addData((uint8_t*)data, len);
     }
   });
 
-
-  this->tcpConnection->onDisconnect([this](AsyncClient* client){
+  // 2. onDisconnect: Requiere 2 argumentos (arg, client)
+  this->tcpConnection->onDisconnect([this](void* arg, AsyncClient* client){
     log_i("Client %i disconnected (onDisconnect).", this->clientId);
-    this->notifyDeleteClient();
+    // En la nueva arquitectura, llamamos al broker directamente
+    this->broker->queueClientForDeletion(this->clientId);
   });
 
-
-  this->tcpConnection->onError([this](AsyncClient* client, int8_t error){
+  // 3. onError: Requiere 3 argumentos (arg, client, error)
+  this->tcpConnection->onError([this](void* arg, AsyncClient* client, int8_t error){
     log_w("Client %i: TCP Error %i", this->clientId, error);
-    this->notifyDeleteClient();
+    this->broker->queueClientForDeletion(this->clientId);
   });
 
-
-  this->tcpConnection->onTimeout([this](AsyncClient* client, uint32_t time){
+  // 4. onTimeout: Requiere 3 argumentos (arg, client, time)
+  this->tcpConnection->onTimeout([this](void* arg, AsyncClient* client, uint32_t time){
     log_w("Client %i: TCP Timeout", this->clientId);
-    this->notifyDeleteClient();
+    this->broker->queueClientForDeletion(this->clientId);
   });
 }
 
@@ -134,7 +136,8 @@ void MqttClient::publishMessage(PublishMqttMessage* publishMessage){
   uint8_t publishFlasgs = 0x6 & topics[i].getQos();
   publishMessage->setFlagsControlType(publishFlasgs);
   */
-  if(!tcpConnection.connected()){
+   
+  if(!tcpConnection->connected()){
     log_w("Client %i not connected. Message not sent.", this->clientId);
     return;
   }

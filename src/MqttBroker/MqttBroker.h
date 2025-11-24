@@ -71,6 +71,9 @@ public:
     MqttBroker(uint16_t port = 1883);
     ~MqttBroker();
 
+    void handleNewClient(AsyncClient *client);
+    void queueClientForDeletion(int clientId);
+    void loop();
     /**
      * @brief Start the listen on port, waiting to new clients.
      */
@@ -89,7 +92,7 @@ public:
      * @param tcpClient socket where is the connection to this client.
      * @param connectMessage object where are all information to the accepetd connection and his client.
      */
-    void addNewMqttClient(WiFiClient &tcpClient, ConnectMqttMessage connectMessage);
+    void addNewMqttClient(AsyncClient *client);
     
     /**
      * @brief delete and free a MqttClient object.
@@ -313,7 +316,7 @@ public:
      * @param keepAlive max time that the broker wait to a mqtt client, if mqtt client doesn't send
      * any message to the broker in this time, broker will close the tcp connection.
      */
-    MqttClient(AsyncClient *tcpConnection, QueueHandle_t * deleteMqttClientQueue, int clientId, uint16_t keepAlive, MqttBroker * broker);
+    MqttClient(AsyncClient *tcpConnection, int clientId, MqttBroker * broker);
 
     ~MqttClient();
 
@@ -386,6 +389,10 @@ public:
 
     void addNode(NodeTrie *node){
         nodesToFree.push_back(node);
+    }
+
+    void setKeepAlive(uint16_t keepAlive){
+        this->keepAlive = keepAlive;
     }
 
     MqttClientState getState() { return _state; }
