@@ -2,209 +2,161 @@
 #include "MqttMessages/ConnectMqttMessage.h"
 
 using namespace mqttBrokerName;
-/***************************** MqttClient class *************************/
-MqttClient::~MqttClient(){
-    
-  for(int i = 0; i < nodesToFree.size(); i++){
-    nodesToFree[i]->unSubscribeMqttClient(this);
-  }  
 
-  if (reader) {
+/***************************** MqttClient class *************************/
+
+MqttClient::~MqttClient(){
+    log_v("Client %i destructor called.", this->clientId);
+
+    // 1. Desuscribir de tópicos
+    for(int i = 0; i < nodesToFree.size(); i++){
+        nodesToFree[i]->unSubscribeMqttClient(this);
+    }  
+    nodesToFree.clear();
+
+    // 2. Liberar Reader
+    if (reader) {
         delete reader;
         reader = NULL;
     }
 
-  if (tcpConnection) {
-      if (tcpConnection->connected()) {
-          tcpConnection->close(true); 
-      }
-      delete tcpConnection;
-      tcpConnection = NULL;
-  }
+    // 3. Liberar Transporte (Esto cerrará el socket subyacente)
+    if (transport) {
+        transport->close();
+        delete transport; // Borramos la interfaz, que borrará la implementación
+        transport = NULL;
+    }
 }
 
+// Constructor actualizado para recibir la Interfaz de Transporte y el ID
+MqttClient::MqttClient(MqttTransport* transport, int clientId, MqttBroker * broker){
+    this->transport = transport;
+    this->clientId = clientId;
+    this->broker = broker;
+    this->_state = STATE_PENDING;
 
-MqttClient::MqttClient(AsyncClient *tcpConnection,  int clientId,MqttBroker * broker){
-  this->clientId = clientId;
-  //this->keepAlive = keepAlive;
-  this->tcpConnection = tcpConnection;
-  //this->deleteMqttClientQueue = deleteMqttClientQueue;
-  this->broker = broker;
-  _state = STATE_PENDING;
+    this->keepAlive = 60; // Default, se actualiza con el CONNECT
+    this->lastAlive = millis();
+    this->action = NULL;
 
-  lastAlive = millis();
-  this->action = NULL;
-
-
-  this->reader = new ReaderMqttPacket([this](){
-      log_v("Client %i: Mqtt Packet ready to be processed.", this->clientId);
-      this->processOnConnectMqttPacket();
-      
+    // 1. Configurar Reader (Máquina de estados)
+    this->reader = new ReaderMqttPacket([this](){
+        log_v("Client %i: Mqtt Packet ready.", this->clientId);
+        // Dependiendo del estado, procesamos handshake o normal
+        if (this->_state == STATE_PENDING) {
+             this->processOnConnectMqttPacket();
+        } else {
+             this->proccessOnMqttPacket();
+        }
     });
 
-  this->initTCPCallbacks();
+    // 2. Configurar Callbacks del Transporte (Agnóstico del protocolo)
+    
+    // Callback de Datos
+    this->transport->setOnData([this](uint8_t* data, size_t len) {
+        log_v("Client %i: Received %u bytes", this->clientId, len);
+        if(this->reader) {
+            this->reader->addData(data, len);
+        }
+    });
+
+    // Callback de Desconexión
+    this->transport->setOnDisconnect([this]() {
+        log_i("Client %i disconnected (Transport closed).", this->clientId);
+        this->broker->queueClientForDeletion(this->clientId);
+    });
 }
-
-void MqttClient::initTCPCallbacks(){
-
-  // 1. onData: Requiere 4 argumentos (arg, client, data, len)
-  this->tcpConnection->onData([this](void* arg, AsyncClient* client, void* data, size_t len) {
-    log_v("Client %i: Received %u bytes", this->clientId, len);
-    if(this->reader) {
-        this->reader->addData((uint8_t*)data, len);
-    }
-  });
-
-  // 2. onDisconnect: Requiere 2 argumentos (arg, client)
-  this->tcpConnection->onDisconnect([this](void* arg, AsyncClient* client){
-    log_i("Client %i disconnected (onDisconnect).", this->clientId);
-    // En la nueva arquitectura, llamamos al broker directamente
-    this->broker->queueClientForDeletion(this->clientId);
-  });
-
-  // 3. onError: Requiere 3 argumentos (arg, client, error)
-  this->tcpConnection->onError([this](void* arg, AsyncClient* client, int8_t error){
-    log_w("Client %i: TCP Error %i", this->clientId, error);
-    this->broker->queueClientForDeletion(this->clientId);
-  });
-
-  // 4. onTimeout: Requiere 3 argumentos (arg, client, time)
-  this->tcpConnection->onTimeout([this](void* arg, AsyncClient* client, uint32_t time){
-    log_w("Client %i: TCP Timeout", this->clientId);
-    this->broker->queueClientForDeletion(this->clientId);
-  });
-}
-
 
 void MqttClient::processOnConnectMqttPacket(){
-    
     uint8_t type = reader->getFixedHeader() >> 4;
 
     if (type == CONNECT) {
-        
         ConnectMqttMessage connectMessage(*reader); 
         
         if (!connectMessage.malFormedPacket()) {
-            
-            log_i(" %s: Handshake OK. state: CONNECTED.", 
-                  tcpConnection->remoteIP().toString().c_str());
+            log_i("Client %i (%s): Handshake OK.", 
+                  this->clientId, 
+                  transport->getIP().c_str()); // Usamos getIP() abstracto
 
-            
             this->_state = STATE_CONNECTED;
             this->setKeepAlive(connectMessage.getKeepAlive());
             this->lastAlive = millis();
 
-            
             String ack = messagesFactory.getAceptedAckConnectMessage().buildMqttPacket();
             sendPacketByTcpConnection(ack);
             
-            this->reader->setCallback([this](){
-                this->proccessOnMqttPacket();
-            });
+            // Nota: Ya no necesitamos cambiar el callback del reader porque 
+            // lo gestionamos con el 'if' en la lambda del constructor.
 
         } else {
-            // Malformed CONNECT
-            log_w("Client %s: CONNECT mal formado. Desconectando.", 
-                  tcpConnection->remoteIP().toString().c_str());
+            log_w("Client %i: Malformed CONNECT.", this->clientId);
             disconnect();
         }
     } else {
-        // not CONNECT as first packet
-        log_w("Client %s: Expected CONNECT as first packet but received type %u. Disconnecting.",
-              tcpConnection->remoteIP().toString().c_str());
+        log_w("Client %i: First packet was not CONNECT.", this->clientId);
         disconnect();
     }
 }
 
-
 void MqttClient::proccessOnMqttPacket(){
-         
-  // get new action.
-  ActionFactory factory;
-  action = factory.getAction(this,*reader);
-  action->doAction();
+    // Actualizamos vida en cualquier paquete válido
+    lastAlive = millis(); 
 
-  // free Action allocated memory.
-  delete action;  
-  lastAlive = millis();
+    ActionFactory factory;
+    action = factory.getAction(this, *reader);
+    
+    if (action) {
+        action->doAction();
+        delete action;  
+        action = NULL;
+    }
 }
 
 void MqttClient::publishMessage(PublishMqttMessage* publishMessage){
-  log_v("Topic %s send to %i", publishMessage->getTopic().getTopic().c_str(), this->clientId);
-  log_v("\n%s", publishMessage->getTopic().getPayLoad().c_str());
-  /*
-  for qos > 0
-  uint8_t publishFlasgs = 0x6 & topics[i].getQos();
-  publishMessage->setFlagsControlType(publishFlasgs);
-  */
-   
-  if(!tcpConnection->connected()){
-    log_w("Client %i not connected. Message not sent.", this->clientId);
-    return;
-  }
-  sendPacketByTcpConnection(publishMessage->buildMqttPacket());
+    // Nota: No chequeamos 'connected' aquí porque el broker ya filtra por estado.
+    sendPacketByTcpConnection(publishMessage->buildMqttPacket());
 }
 
 void MqttClient::subscribeToTopic(SubscribeMqttMessage * subscribeMqttMessage){
-  broker->SubscribeClientToTopic(subscribeMqttMessage, this);
+    broker->SubscribeClientToTopic(subscribeMqttMessage, this);
 }
-
 
 void MqttClient::notifyPublishRecived(PublishMqttMessage *publishMessage){
-  broker->publishMessage(publishMessage);
+    broker->publishMessage(publishMessage);
 }
 
-
 void MqttClient::sendPacketByTcpConnection(String mqttPacket){
-  
-  if (tcpConnection == NULL || !tcpConnection->connected()) {
-          log_w("Client %i: Not connected. Packet not sent.", clientId);
-          return;
-      }
-
-  if (tcpConnection->canSend() && tcpConnection->space() >= mqttPacket.length()) {
-      tcpConnection->write(mqttPacket.c_str(), mqttPacket.length());
-  } else {
-      log_w("Client %i: TCP buffer full. Packet dropped.", clientId);
-  }
+    // Usamos la interfaz de transporte
+    if (transport && transport->connected()) {
+        // Aquí podríamos añadir la lógica de cola de salida (Outbox) si quisieramos
+        if (transport->canSend()) {
+            transport->send(mqttPacket.c_str(), mqttPacket.length());
+        } else {
+            log_w("Client %i: Transport buffer full.", clientId);
+        }
+    }
 }
 
 void MqttClient::sendPingRes(){
-  String resPacket = messagesFactory.getPingResMessage().buildMqttPacket();
-  log_v("sending ping response to %i.", this->clientId);
-  sendPacketByTcpConnection(resPacket);
+    String resPacket = messagesFactory.getPingResMessage().buildMqttPacket();
+    sendPacketByTcpConnection(resPacket);
 }
 
 void MqttClient::disconnect(){
-  if(tcpConnection && tcpConnection->connected()){
-      tcpConnection->close();
-      // This will trigger the onDisconnect callback,
-      // which in turn calls notifyDeleteClient().
-  }
+    if(transport && transport->connected()){
+        transport->close();
+    }
 }
 
 bool MqttClient::checkKeepAlive(unsigned long currentMillis){
-    
-    // 1. Si keepAlive es 0, el mecanismo está desactivado según spec MQTT
-    if (this->keepAlive == 0) {
-        return true; 
-    }
+    if (this->keepAlive == 0) return true; 
 
-    // 2. Calculamos el tiempo límite en milisegundos.
-    // La especificación MQTT dice que el broker debe permitir 1.5 veces el keepAlive.
-    // keepAlive está en segundos, así que multiplicamos por 1000 y luego por 1.5 = 1500.
     unsigned long timeoutMs = (unsigned long)this->keepAlive * 1500;
 
-    // 3. Comprobamos si ha pasado el tiempo (maneja desbordamiento de millis automáticamente)
     if ((currentMillis - this->lastAlive) > timeoutMs) {
-        log_w("Client %i: KeepAlive Timeout (%u s). Desconectando.", this->clientId, this->keepAlive);
-        
-        // Iniciamos la desconexión. 
-        // Esto activará onDisconnect -> broker->queueClientForDeletion
+        log_w("Client %i: KeepAlive Timeout. Disconnecting.", this->clientId);
         disconnect(); 
-        
-        return false; // El cliente ha muerto
+        return false;
     }
-
-    return true; // El cliente sigue vivo
+    return true; 
 }

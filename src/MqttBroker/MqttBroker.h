@@ -9,7 +9,7 @@
 #include "MqttMessages/SubscribeMqttMessage.h"
 #include "MqttMessages/UnsubscribeMqttMessage.h"
 #include "MqttMessages/PublishMqttMessage.h"
-#include "MqttTransport.h"
+#include "TransportLayer/MqttTransport.h"
 
 namespace mqttBrokerName{
 
@@ -62,7 +62,7 @@ class MqttBroker
 {
 private:
     
-    AsyncServer* server;
+    ServerListener* listener;
     uint16_t port;
     uint16_t maxNumClients;
     // unique id in the scope of this broker.
@@ -78,7 +78,7 @@ private:
     QueueHandle_t brokerEventQueue;
 
     /************************* clients structure **************************/
-    std::map<int,MqttClient*> clients;
+    std::map<MqttTransport*, MqttClient*> clients;
 
 public:
 
@@ -87,16 +87,16 @@ public:
      * 
      * @param port where Mqtt broker listen.
      */
-    MqttBroker(uint16_t port = 1883);
+    MqttBroker(ServerListener* listener);
     ~MqttBroker();
 
     void handleNewClient(AsyncClient *client);
-    void queueClientForDeletion(int clientId);
+    void queueClientForDeletion(MqttTransport* transportKey);
     bool processBrokerEvents();
         // Métodos internos que hacen el trabajo real (ejecutados por el Worker)
     void _publishMessageImpl(PublishMqttMessage* msg);
     void _subscribeClientImpl(SubscribeMqttMessage* msg, MqttClient* client);
-    
+    void acceptClient(MqttTransport* transport);
     /**
      * @brief Start the listen on port, waiting to new clients.
      */
@@ -122,7 +122,7 @@ public:
      * 
      * @param clientId 
      */
-    void deleteMqttClient(int clientId);
+    void deleteMqttClient(MqttTransport* transportKey);
 
     /**
      * @brief publish a mqtt message arrived to all mqtt clients interested.
@@ -324,7 +324,7 @@ class MqttClient
 private:
     // client id in the scope of this broker.
     int clientId;
-    AsyncClient *tcpConnection;
+    MqttTransport* transport;
     ReaderMqttPacket *reader;
     MqttClientState _state;
     QueueHandle_t *deleteMqttClientQueue;
@@ -383,7 +383,7 @@ public:
      * @param keepAlive max time that the broker wait to a mqtt client, if mqtt client doesn't send
      * any message to the broker in this time, broker will close the tcp connection.
      */
-    MqttClient(AsyncClient *tcpConnection, int clientId, MqttBroker * broker);
+    MqttClient(MqttTransport* transport, int clientId, MqttBroker * broker);
 
     ~MqttClient();
 
