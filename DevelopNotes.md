@@ -18,13 +18,17 @@
 
 * Migrate MqttBroker to asyncTCP:
 
-  * There aren't workers for hard task:
-    * worker for check keep alive y delete operations ok
-    * worker for publish and subscribe mqttpacket:
-      * now try to use struct and events, need to pass PublishMqttMessage in queue.
-    * worker for readerMqttPacket.
+
 
 ### done
+
+#### 26/11/2025
+
+* There aren't workers for hard task:
+  * worker for check keep alive y delete operations ok
+  * worker for publish and subscribe mqttpacket:
+    * now try to use struct and events, need to pass PublishMqttMessage in queue.
+  * worker for readerMqttPacket.
 
 #### 24/11/2025
 
