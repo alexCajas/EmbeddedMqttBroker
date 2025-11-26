@@ -9,6 +9,7 @@
 #include "MqttMessages/SubscribeMqttMessage.h"
 #include "MqttMessages/UnsubscribeMqttMessage.h"
 #include "MqttMessages/PublishMqttMessage.h"
+#include "MqttTransport.h"
 
 namespace mqttBrokerName{
 
@@ -31,7 +32,7 @@ class Trie;
 class NodeTrie;
 class TCPListenerTask;
 class Action;
-
+class ServerListener;
 
 enum BrokerEventType {
     EVENT_PUBLISH,
@@ -170,6 +171,20 @@ public:
     void processKeepAlives();
 };
 
+class ServerListener {
+protected:
+    MqttBroker* broker = nullptr;
+
+public:
+    virtual ~ServerListener() {}
+
+    // Inyección del Broker (Observer Pattern)
+    void setBroker(MqttBroker* b) { broker = b; }
+
+    // Ciclo de vida
+    virtual void begin() = 0;
+    virtual void stop() = 0;
+};
 
 /*********************** Tasks **************************/
 
