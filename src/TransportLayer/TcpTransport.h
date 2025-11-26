@@ -65,6 +65,10 @@ public:
         return _client && _client->canSend();
     }
 
+    size_t space() override { 
+        return _client ? _client->space() : 0; 
+    }
+    
     String getIP() override {
         return _client ? _client->remoteIP().toString() : "0.0.0.0";
     }

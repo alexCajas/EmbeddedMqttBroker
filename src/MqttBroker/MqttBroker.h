@@ -10,7 +10,7 @@
 #include "MqttMessages/UnsubscribeMqttMessage.h"
 #include "MqttMessages/PublishMqttMessage.h"
 #include "TransportLayer/MqttTransport.h"
-
+#include "TransportLayer/TcpTransport.h"
 namespace mqttBrokerName{
 
 // Depends of your architecture, max num clients is exactly the 
@@ -33,7 +33,7 @@ class NodeTrie;
 class TCPListenerTask;
 class Action;
 class ServerListener;
-
+class TcpServerListener;
 enum BrokerEventType {
     EVENT_PUBLISH,
     EVENT_SUBSCRIBE
@@ -184,6 +184,46 @@ public:
     // Ciclo de vida
     virtual void begin() = 0;
     virtual void stop() = 0;
+};
+
+class TcpServerListener : public ServerListener {
+private:
+    uint16_t port;
+    AsyncServer* server;
+
+public:
+    TcpServerListener(uint16_t port) : port(port), server(nullptr) {}
+
+    ~TcpServerListener() {
+        stop();
+        if (server) delete server;
+    }
+
+    void begin() override {
+        if (!server) server = new AsyncServer(port);
+
+        // Callback cuando alguien se conecta por TCP
+        server->onClient([this](void* arg, AsyncClient* client) {
+            if (this->broker) {
+                // 1. Convertimos AsyncClient -> TcpTransport
+                MqttTransport* transport = new TcpTransport(client);
+                
+                // 2. Se lo pasamos al Broker
+                this->broker->acceptClient(transport);
+            } else {
+                // Si no hay broker asignado, rechazamos
+                client->close();
+                delete client;
+            }
+        }, nullptr);
+
+        server->begin();
+        log_i("TCP Listener iniciado en puerto %u", port);
+    }
+
+    void stop() override {
+        if (server) server->end();
+    }
 };
 
 /*********************** Tasks **************************/

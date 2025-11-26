@@ -18,6 +18,7 @@ public:
     virtual void close() = 0;
     virtual bool connected() = 0;
     virtual bool canSend() = 0;
+    virtual size_t space() = 0;
     virtual String getIP() = 0;
 
     // Configuración de hooks (Llamados por MqttClient)

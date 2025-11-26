@@ -63,7 +63,7 @@ MqttClient::MqttClient(MqttTransport* transport, int clientId, MqttBroker * brok
     // Callback de Desconexión
     this->transport->setOnDisconnect([this]() {
         log_i("Client %i disconnected (Transport closed).", this->clientId);
-        this->broker->queueClientForDeletion(this->clientId);
+        this->broker->queueClientForDeletion(this->transport);
     });
 }
 
@@ -126,14 +126,21 @@ void MqttClient::notifyPublishRecived(PublishMqttMessage *publishMessage){
 }
 
 void MqttClient::sendPacketByTcpConnection(String mqttPacket){
-    // Usamos la interfaz de transporte
+    
     if (transport && transport->connected()) {
-        // Aquí podríamos añadir la lógica de cola de salida (Outbox) si quisieramos
-        if (transport->canSend()) {
-            transport->send(mqttPacket.c_str(), mqttPacket.length());
-        } else {
-            log_w("Client %i: Transport buffer full.", clientId);
+        size_t len = mqttPacket.length();
+
+        // 1. Comprobamos espacio ANTES de enviar, igual que en tu versión original
+        if (transport->canSend() && transport->space() >= len) {
+            transport->send(mqttPacket.c_str(), len);
+        } 
+        else {
+            // 2. Ahora sí detectamos si está lleno
+            log_w("Client %i: Transport buffer full (%u bytes free). Packet dropped.", 
+                  clientId, transport->space());
         }
+    } else {
+        log_w("Client %i: Transport not connected.", clientId);
     }
 }
 
