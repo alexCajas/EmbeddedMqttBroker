@@ -4,7 +4,7 @@ SubscribeAction::SubscribeAction(MqttClient *mqttClient,ReaderMqttPacket &readed
     subscribeMqttMessage = new SubscribeMqttMessage(readedPacket);
 }
 SubscribeAction::~SubscribeAction(){
-    delete subscribeMqttMessage;
+    
 }
 
 void SubscribeAction::doAction(){

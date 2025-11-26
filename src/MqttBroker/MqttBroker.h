@@ -40,10 +40,13 @@ enum BrokerEventType {
 
 struct BrokerEvent {
     BrokerEventType type;
-    MqttClient* client;      // Quién originó el evento (o quién se suscribe)
-    String topic;            // Tópico involucrado
-    String payload;          // Payload (solo para Publish)
-    // uint8_t qos;          // (Opcional para futuro)
+    MqttClient* client; // Quién origina la acción (o quién se suscribe)
+    
+    // Usamos una union para ahorrar memoria (o es uno o es el otro)
+    union {
+        PublishMqttMessage* pubMsg;
+        SubscribeMqttMessage* subMsg;
+    } message;
 };
 
 /**
@@ -88,10 +91,10 @@ public:
 
     void handleNewClient(AsyncClient *client);
     void queueClientForDeletion(int clientId);
-    void processBrokerEvents();
+    bool processBrokerEvents();
         // Métodos internos que hacen el trabajo real (ejecutados por el Worker)
-    void _publishMessageImpl(String topic, String payload);
-    void _subscribeClientImpl(String topic, MqttClient* client);
+    void _publishMessageImpl(PublishMqttMessage* msg);
+    void _subscribeClientImpl(SubscribeMqttMessage* msg, MqttClient* client);
     
     /**
      * @brief Start the listen on port, waiting to new clients.
@@ -158,7 +161,7 @@ public:
      * @brief Procesa la cola de eliminación.
      * Llamado por BrokerMaintenanceTask.
      */
-    void processDeletions();
+    bool processDeletions();
 
     /**
      * @brief Verifica timeouts de clientes.
@@ -173,14 +176,13 @@ public:
 class CheckMqttClientTask : public Task {
 private:
     MqttBroker *broker;
-    QueueHandle_t *brokerEventQueue;
-    QueueHandle_t *deleteMqttClientQueue;
+
 public:
     /**
      * @brief Constructor del Worker.
      * @param broker Puntero al broker para invocar sus métodos de limpieza.
      */
-    CheckMqttClientTask(MqttBroker *broker, QueueHandle_t *brokerEventQueue, QueueHandle_t *deleteMqttClientQueue);
+    CheckMqttClientTask(MqttBroker *broker);
     
     /**
      * @brief El bucle infinito del Worker.

@@ -5,7 +5,7 @@ PublishAction::PublishAction(MqttClient* mqttClient, ReaderMqttPacket &packetRea
 }
 
 PublishAction::~PublishAction(){
-    delete publishMqttMessage;
+    
 }
 
 
