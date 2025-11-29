@@ -173,18 +173,44 @@ public:
     void processKeepAlives();
 };
 
+/**
+ * @brief Abstract interface for Network Server Listeners.
+ * * This class applies the **Strategy Pattern** to decouple the connection acceptance logic
+ * from the main Broker logic. Concrete implementations (like TcpServerListener or 
+ * WsServerListener) inherit from this class to handle protocol-specific details 
+ * of starting a server and accepting incoming connections.
+ */
 class ServerListener {
 protected:
+    /**
+     * @brief Pointer to the main MqttBroker.
+     * The listener uses this to notify the broker when a new client connects
+     * by calling `broker->acceptClient()`.
+     */
     MqttBroker* broker = nullptr;
 
 public:
     virtual ~ServerListener() {}
 
-    // Inyección del Broker (Observer Pattern)
+    /**
+     * @brief Injects the MqttBroker dependency (Observer/Callback pattern).
+     * * @param b Pointer to the MqttBroker instance that owns this listener.
+     */
     void setBroker(MqttBroker* b) { broker = b; }
 
-    // Ciclo de vida
+    // --- Lifecycle Methods ---
+
+    /**
+     * @brief Starts the underlying network server.
+     * Implementation should initialize the specific server (e.g., AsyncTCP, WebServer)
+     * and begin listening on the configured port.
+     */
     virtual void begin() = 0;
+
+    /**
+     * @brief Stops the underlying network server.
+     * Implementation should stop listening and release network resources.
+     */
     virtual void stop() = 0;
 };
 
