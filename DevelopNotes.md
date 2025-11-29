@@ -16,17 +16,23 @@
 
 ### doing
 
+* imprivementes:
+  * factories for MqttBrokers
+  * outbox parametric size
+  * parametric url for mqtt /mqtt
+
+### done
+
+#### 29/11/2025
+
 * Migrate MqttBroker to asyncTCP:
   * Adapter pattern --> done
   * issues with test_tow_client_conextion.sh:
     * There are some packets lost, probably is needed an outBox vector:
       * try with no logs: there less lost, but it doesn't solve:
         * Here the explanation: Task + WiFiClient is autoblocking, so it adapts to wireless velocity, but AsyncTCP doesn't wait, so it only push message and continue even if wireless card are full, but is normal in an async connection.
-        * The solution is outbox. 
-
-### done
-
-#### 29/11/2025
+        * The solution is outbox:
+          * There is no problem with esp32 it send well, the problem was an no tread safe access to _outbox 
 
 * _publishMessageImpl:
   * This O(N*M) loop is a temporary inefficiency due to mapping IDs vs Pointers Future optimization: Store MqttClient* in the Trie directly.

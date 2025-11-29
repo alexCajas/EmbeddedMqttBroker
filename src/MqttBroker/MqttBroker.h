@@ -643,6 +643,18 @@ private:
      */
     std::deque<String> _outbox;
 
+    /**
+     * @brief Mutex for thread-safe access to the Outbox queue.
+     *
+     * **Concurrency Critical:**
+     * This mutex protects the `_outbox` std::deque from race conditions.
+     * - **Producer:** The Worker Task (Core 0) locks this when adding packets via `sendPacketByTcpConnection`.
+     * - **Consumer:** The Network Thread (Core 1) locks this when removing packets via `_drainOutbox`.
+     *
+     * Without this lock, simultaneous push/pop operations would corrupt the queue's memory.
+     */
+    SemaphoreHandle_t _outboxMutex;
+
     /** @brief Pointer to the main Broker instance (The Owner). */
     MqttBroker *broker;
 

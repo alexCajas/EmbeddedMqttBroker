@@ -26,6 +26,11 @@ MqttClient::~MqttClient(){
         delete transport; 
         transport = NULL;
     }
+
+    // Free the Outbox Mutex
+    if (_outboxMutex) {
+        vSemaphoreDelete(_outboxMutex);
+    }
 }
 
 // --- CONSTRUCTOR ---
@@ -38,6 +43,12 @@ MqttClient::MqttClient(MqttTransport* transport, int clientId, MqttBroker * brok
     this->keepAlive = 60; // Default value, will be updated by CONNECT packet
     this->lastAlive = millis();
     this->action = NULL;
+
+    // Critical Failure Check:
+    _outboxMutex = xSemaphoreCreateMutex();
+    if (!_outboxMutex) {
+        log_e("Failed to create outboxMutex"); ESP.restart();
+    }
 
     // 1. Configure Reader Callback (State Machine Entry Point)
     // The reader accumulates bytes and calls this lambda when a full packet is ready.
@@ -152,81 +163,77 @@ void MqttClient::notifyPublishRecived(PublishMqttMessage *publishMessage){
 // --- NETWORK I/O ---
 
 void MqttClient::sendPacketByTcpConnection(String mqttPacket){
-    
-    // 1. Safety Check: If transport is dead, clear buffer to free RAM.
+    // 1. Sanity Check: If disconnected, clear outbox to free RAM.
     if (!transport || !transport->connected()) {
-        _outbox.clear();
-        return;
-    }
-
-    // 2. FIFO Enforcement (Protocol Order Integrity)
-    // If the Outbox already has pending packets, we MUST queue this new packet 
-    // at the back. Sending it directly now would bypass previous messages, 
-    // corrupting the MQTT protocol state.
-    if (!_outbox.empty()) {
-        // Memory Protection: Cap the queue size
-        if (_outbox.size() < 50) {
-            _outbox.push_back(mqttPacket);
-        } else {
-            log_e("Client %i: Outbox overflow! Dropping packet.", clientId);
+        if (xSemaphoreTake(_outboxMutex, portMAX_DELAY)) {
+            _outbox.clear();
+            xSemaphoreGive(_outboxMutex);
         }
-        
-        // Attempt to drain now, in case space just freed up
-        _drainOutbox();
         return;
     }
 
-    // 3. Fast Path (Direct Send)
-    // If the queue is empty, we try to write directly to the Network Stack 
-    // to avoid the overhead of copying to the std::deque.
-    size_t len = mqttPacket.length();
-
-    if (transport->canSend() && transport->space() >= len) {
-        // Attempt actual write. 
-        // We assume success only if the Transport confirms all bytes were written.
-        size_t written = transport->send(mqttPacket.c_str(), len);
+    // --- CRITICAL SECTION (Producer) ---
+    // Protect access to the std::deque
+    if (xSemaphoreTake(_outboxMutex, portMAX_DELAY) == pdTRUE) {
         
-        if (written == len) {
-            // Success: Packet transferred to kernel buffer. No buffering needed.
+        size_t len = mqttPacket.length();
+        // Check if the network stack is ready right now
+        bool transportReady = transport->canSend() && transport->space() >= len;
+
+        // 2. FIFO Logic: If queue has items OR network is busy -> Queue it.
+        // We cannot bypass existing items in the queue.
+        if (!_outbox.empty() || !transportReady) {
+            
+            // Queue Protection: Cap size to prevent OOM
+            if (_outbox.size() < 100) {
+                _outbox.push_back(mqttPacket);
+            } else {
+                log_e("Client %i: Outbox full! Dropping packet.", clientId);
+            }
+            
+            xSemaphoreGive(_outboxMutex); // Release lock before calling draining logic
+            
+            // Try to drain immediately in case space just freed up
+            if (transportReady) _drainOutbox();
             return;
         }
-    } 
-    
-    // 4. Backpressure Handling (Buffering)
-    // If we reach here, either space() was low OR the write() failed/returned 0.
-    // We move the packet to Software RAM to retry later.
-    log_v("Client %i: Network busy. Buffering packet.", clientId);
-    _outbox.push_back(mqttPacket);
+        
+        // 3. Fast Path (Optimization): Queue is empty AND Network is ready.
+        // Release mutex first to avoid holding it during the network call.
+        xSemaphoreGive(_outboxMutex); 
+        
+        // Send directly without queuing (Zero-Copy efficiency)
+        transport->send(mqttPacket.c_str(), len);
+    }
 }
 
 void MqttClient::_drainOutbox() {
     if (!transport || !transport->connected()) return;
 
-    // Pump loop: Move data from RAM to Network until blocked or empty
-    while (!_outbox.empty()) {
-        String& nextPacket = _outbox.front();
-        size_t len = nextPacket.length();
+    // --- CRITICAL SECTION (Consumer) ---
+    // Try to acquire lock with a short timeout. If Worker is writing, we retry later 
+    // rather than blocking the Network Thread for too long.
+    if (xSemaphoreTake(_outboxMutex, 10 / portTICK_PERIOD_MS) == pdTRUE) {
+        
+        while (!_outbox.empty()) {
+            String& nextPacket = _outbox.front();
+            size_t len = nextPacket.length();
 
-        // Check if Network Stack can accept this specific packet
-        if (transport->canSend() && transport->space() >= len) {
-            
-            // Attempt transmission
-            size_t written = transport->send(nextPacket.c_str(), len);
-            
-            if (written == len) {
-                // Success: Transaction complete. Remove from RAM.
-                _outbox.pop_front();
+            // Check network availability
+            if (transport->canSend() && transport->space() >= len) {
+                // Attempt actual write
+                size_t written = transport->send(nextPacket.c_str(), len);
+                
+                if (written == len) {
+                    _outbox.pop_front(); // Success: Remove from queue
+                } else {
+                    break; // Partial write/Failure: Stop and retry later
+                }
             } else {
-                // Write Failed (Zero or Partial write):
-                // This happens if space() was an estimate or LwIP internal buffers are fragmented.
-                // Action: Abort immediately. Keep the packet at the front of the queue.
-                // We will retry on the next 'onReadyToSend' event or poll cycle.
-                break;
+                break; // Buffer full: Stop pumping
             }
-        } else {
-            // Buffer Full: Stop pumping to avoid spin-locking.
-            break; 
         }
+        xSemaphoreGive(_outboxMutex);
     }
 }
 
