@@ -19,17 +19,17 @@
 * Migrate MqttBroker to asyncTCP:
   * Adapter pattern --> done
   * issues with test_tow_client_conextion.sh:
-    * There are some packets lost, probably is needed an outBox vector.
-
-* WebSocket MqttBroker:
-  * try to improve search client in wsListener.
-
-
+    * There are some packets lost, probably is needed an outBox vector:
+      * try with no logs
 
 ### done
 
 
 #### 26/11/2025
+
+* WebSocket MqttBroker:
+  * try to improve search client in wsListener--> it is no need, map find in O(log n) time.
+
 
 * There aren't workers for hard task:
   * worker for check keep alive y delete operations ok

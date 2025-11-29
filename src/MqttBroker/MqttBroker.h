@@ -39,7 +39,7 @@ class TcpServerListener;
 class WsServerListener;
 
 /**
- * @brief Defines the types of asynchronous events handled by the Worker Task.
+ * @brief Defines the types of asynchronous events handled by the CheckMqttClientTask Task.
  */
 enum BrokerEventType {
     /**
@@ -54,8 +54,8 @@ enum BrokerEventType {
 };
 
 /**
- * @brief Data structure used to pass tasks from the Network Thread (Core 1) 
- * to the Worker Thread (Core 0).
+ * @brief Data structure used to pass tasks from the Network Thread. 
+ * to the CheckMqttClientTask Thread.
  * * This struct is designed to be lightweight. It uses a **union** to save memory,
  * assuming that a single event can only be of one type at a time.
  */
@@ -77,7 +77,7 @@ struct BrokerEvent {
     /**
      * @brief Polymorphic container for the message object.
      * * @note **Memory Management Rule:** The objects pointed to by this union 
-     * MUST be allocated on the Heap (using `new`). The Worker Task assumes 
+     * MUST be allocated on the Heap (using `new`). The CheckMqttClientTask Task assumes 
      * ownership of these pointers and is responsible for `delete`-ing them 
      * after processing.
      */
@@ -99,22 +99,67 @@ class MqttBroker
 {
 private:
     
+    /**
+     * @brief Strategy Interface for network listening.
+     * Polymorphic pointer that abstracts the underlying server implementation 
+     */
     ServerListener* listener;
+
+    /** @brief Port number the broker is listening on (e.g., 1883 or 8080). */
     uint16_t port;
+
+    /** @brief Maximum number of concurrent connections allowed. */
     uint16_t maxNumClients;
-    // unique id in the scope of this broker.
+
+    /** * @brief Rolling counter for Client ID generation.
+     * Used to assign a unique internal integer ID to every new connection.
+     */
     int numClient = 0;
 
+    /**
+     * @brief The Background CheckMqttClientTask.
+     * A FreeRTOS task running to processes the `brokerEventQueue` 
+     * and handles client cleanups to keep the Network Thread non-blocking.
+     */
     CheckMqttClientTask *checkMqttClientTask;
+
+    /**
+     * @brief Data structure for efficient Topic matching.
+     * Stores subscriptions and allows fast retrieval of clients interested in a specific topic.
+     */
     Trie *topicTrie;
 
 
-    /***************************** Queue to sincronize Tasks ****************/
+    /***************************** Synchronization Primitives ****************/
+
+    /**
+     * @brief Queue for deferred client deletion.
+     * Stores pointers to `MqttTransport` objects that need to be destroyed. 
+     * Used to safely delete clients outside of the network callback context.
+     */
     QueueHandle_t deleteMqttClientQueue;
+
+    /**
+     * @brief Mutex for thread safety.
+     * Protects shared resources (specifically the `clients` map) from concurrent 
+     * access between the Network Thread (AsyncTCP/WS callbacks) and the Worker Thread.
+     */
     SemaphoreHandle_t clientSetMutex;
+
+    /**
+     * @brief Queue for high-level Broker Events.
+     * Buffers `BrokerEvent` structures (Publish/Subscribe requests) so they can 
+     * be processed sequentially by the CheckMqttClientTask task without blocking the network.
+     */
     QueueHandle_t brokerEventQueue;
 
-    /************************* clients structure **************************/
+    /************************* Client Registry **************************/
+
+    /**
+     * @brief Main container of active clients.
+     * * **Key:** `MqttTransport*` - The pointer to the transport interface is used as the unique key.
+     * * **Value:** `MqttClient*` - The instance of the client logic.
+     */
     std::map<MqttTransport*, MqttClient*> clients;
 
 public:
@@ -142,7 +187,7 @@ public:
      * @brief Schedules a client for safe deletion.
      * * This method is called by `MqttClient` when a disconnection occurs.  
      * It pushes the transport key into the `deleteMqttClientQueue`.
-     * * The actual deletion happens later in the Worker thread.
+     * * The actual deletion happens later in the CheckMqttClientTask thread.
      * * @param transportKey The pointer to the transport, used as the unique key to identify the client.
      */
     void queueClientForDeletion(MqttTransport* transportKey);
@@ -152,8 +197,8 @@ public:
      * * This method is called repeatedly by the `CheckMqttClientTask`.
      * It consumes the `brokerEventQueue`, unpacking the `BrokerEvent` structures 
      * and dispatching them to the internal implementation methods (`_impl`).
-     * * @return true If at least one event was processed (keeps the worker busy).
-     * @return false If the queue was empty (allows the worker to sleep).
+     * * @return true If at least one event was processed (keeps the CheckMqttClientTask busy).
+     * @return false If the queue was empty (allows the CheckMqttClientTask to sleep).
      */
     bool processBrokerEvents();
 
@@ -169,7 +214,7 @@ public:
 
     /**
      * @brief Internal implementation of the Subscribe logic.
-     * * Executed by the Worker. It interacts with the `Trie` data structure to 
+     * * Executed by the CheckMqttClientTask. It interacts with the `Trie` data structure to 
      * register the client's interest in specific topics.
      * * @param msg Pointer to the subscribe message object (will be deleted after use).
      * @param client Pointer to the client requesting the subscription.
@@ -236,15 +281,28 @@ public:
         return (clients.size() == maxNumClients);
     }
 
-    /**
-     * @brief Procesa la cola de eliminación.
-     * Llamado por BrokerMaintenanceTask.
+/**
+     * @brief Processes the deferred client deletion queue.
+     * * This method acts as the **Garbage Collector** of the Broker. It is executed 
+     * by the CheckMqttClientTask Task. It consumes the `deleteMqttClientQueue`, which 
+     * contains references to clients that have disconnected on the Network Thread.
+     * * **Why is this needed?** Deleting an object directly inside its own callback causes 
+     * "use-after-free" crashes. By deferring deletion to this separate thread/loop, 
+     * we ensure the object is safely destroyed only when it is no longer in use.
+     * * @return true If at least one client was deleted (signals the CheckMqttClientTask to keep running).
+     * @return false If the queue was empty.
      */
     bool processDeletions();
 
     /**
-     * @brief Verifica timeouts de clientes.
-     * Llamado por BrokerMaintenanceTask.
+     * @brief Periodically checks for client inactivity (Keep-Alive).
+     * * This method iterates through the entire registry of active clients. For each 
+     * connected client, it calculates the time elapsed since the last received packet.
+     * If this time exceeds 1.5x the negotiated Keep-Alive interval (as per MQTT Spec), 
+     * the client is forcibly disconnected.
+     * * @note <b>Thread Safety:</b> Since this method reads the `clients` map (which is written 
+     * to by the Network Thread on new connections), it acquires the `clientSetMutex` 
+     * to prevent iterator invalidation crashes.
      */
     void processKeepAlives();
 };
@@ -415,23 +473,43 @@ private:
 
 /*********************** Tasks **************************/
 
+/**
+ * @brief The Background Worker Task (The Engine).
+ * * This class implements the **Worker Thread Pattern**. It runs on a separate FreeRTOS 
+ * task (typically pinned to **Core 0**), isolating heavy processing logic from the 
+ * Network I/O events (which occur on **Core 1** via AsyncTCP).
+ * * Its main responsibilities are:
+ * 1. **Event Processing:** Consuming the `brokerEventQueue` to handle PUBLISH routing 
+ * and SUBSCRIBE trie insertions sequentially.
+ * 2. **Garbage Collection:** Consuming the `deleteMqttClientQueue` to safely destroy 
+ * disconnected clients without race conditions.
+ * 3. **Maintenance:** Periodically checking Keep-Alive timeouts.
+ */
 class CheckMqttClientTask : public Task {
 private:
+    /** @brief Reference to the Broker instance to access queues and implementation methods. */
     MqttBroker *broker;
 
 public:
     /**
-     * @brief Constructor del Worker.
-     * @param broker Puntero al broker para invocar sus métodos de limpieza.
+     * @brief Construct a new Worker Task.
+     * * Initializes the task configuration (stack size, priority). It does not start 
+     * the task immediately; `start()` must be called explicitly by the Broker.
+     * * @param broker Pointer to the main MqttBroker instance.
      */
     CheckMqttClientTask(MqttBroker *broker);
     
     /**
-     * @brief El bucle infinito del Worker.
+     * @brief The Main Event Loop.
+     * * This method contains the infinite loop that drives the Broker's logic.
+     * It continuously polls the Broker's queues (Events and Deletions) and 
+     * performs periodic maintenance.
+     * * It uses an adaptive sleep strategy (`taskYIELD` under load, `vTaskDelay` when idle) 
+     * to balance throughput and power consumption.
+     * * @param data Unused parameter required by FreeRTOS task signature.
      */
     void run(void *data) override;
 };
-
 
 /***************************************** MqttClient Class ***********************/
 
