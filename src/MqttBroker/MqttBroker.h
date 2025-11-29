@@ -127,13 +127,55 @@ public:
     MqttBroker(ServerListener* listener);
     ~MqttBroker();
 
-    void handleNewClient(AsyncClient *client);
-    void queueClientForDeletion(MqttTransport* transportKey);
-    bool processBrokerEvents();
-        // Métodos internos que hacen el trabajo real (ejecutados por el Worker)
-    void _publishMessageImpl(PublishMqttMessage* msg);
-    void _subscribeClientImpl(SubscribeMqttMessage* msg, MqttClient* client);
+    /**
+     * @brief Accepts a new physical connection from the ServerListener.
+     * * This is the "Entry Point" for new clients. It is called by the `ServerListener`
+     *  when a TCP handshake or WebSocket upgrade completes.
+     * * @note <b>Thread Safety:</b> This method acquires the `clientSetMutex` to safely 
+     * add the new client to the `clients` map.
+     * * @param transport A pointer to the abstract `MqttTransport` wrapper.
+     * The Broker takes ownership of this pointer.
+     */
     void acceptClient(MqttTransport* transport);
+
+    /**
+     * @brief Schedules a client for safe deletion.
+     * * This method is called by `MqttClient` when a disconnection occurs.  
+     * It pushes the transport key into the `deleteMqttClientQueue`.
+     * * The actual deletion happens later in the Worker thread.
+     * * @param transportKey The pointer to the transport, used as the unique key to identify the client.
+     */
+    void queueClientForDeletion(MqttTransport* transportKey);
+
+    /**
+     * @brief Processes pending Broker events (Publish/Subscribe).
+     * * This method is called repeatedly by the `CheckMqttClientTask`.
+     * It consumes the `brokerEventQueue`, unpacking the `BrokerEvent` structures 
+     * and dispatching them to the internal implementation methods (`_impl`).
+     * * @return true If at least one event was processed (keeps the worker busy).
+     * @return false If the queue was empty (allows the worker to sleep).
+     */
+    bool processBrokerEvents();
+
+    /**
+     * @brief Internal implementation of the Publish logic.
+     * * It queries the `Trie` to find subscribers for the 
+     * given topic and iterates through the `clients` map to send the message.
+     * * @note <b>Memory Management:</b> This method assumes ownership of the 
+     * `PublishMqttMessage*` and is responsible for `delete`-ing it after processing.
+     * * @param msg Pointer to the message object created on the Heap.
+     */
+    void _publishMessageImpl(PublishMqttMessage* msg);
+
+    /**
+     * @brief Internal implementation of the Subscribe logic.
+     * * Executed by the Worker. It interacts with the `Trie` data structure to 
+     * register the client's interest in specific topics.
+     * * @param msg Pointer to the subscribe message object (will be deleted after use).
+     * @param client Pointer to the client requesting the subscription.
+     */
+    void _subscribeClientImpl(SubscribeMqttMessage* msg, MqttClient* client);
+
     /**
      * @brief Start the listen on port, waiting to new clients.
      */
