@@ -261,98 +261,79 @@ public:
     void stop() override;
 };
 
+/**
+ * @brief Concrete implementation of ServerListener for WebSocket connections.
+ * * This class acts as a bridge between the `ESPAsyncWebServer` library and the 
+ * `MqttBroker`. It listens on a specific TCP port (usually 8080 or 80) for 
+ * HTTP/WebSocket upgrade requests on the "/mqtt" path.
+ * * @note **Routing Strategy:** Unlike `AsyncTCP` which provides per-client callbacks, 
+ * `AsyncWebSocket` triggers a single **Global Event** for all connected clients. 
+ * Therefore, this class maintains an internal map (`activeTransports`) to route 
+ * global events (Data, Disconnect) to the specific `WsTransport` instance 
+ * associated with a client ID.
+ */
 class WsServerListener : public ServerListener {
 private:
+    /**
+     * @brief The port to listen on.
+     */
     uint16_t port;
+
+    /**
+     * @brief Pointer to the underlying Async Web Server.
+     */
     AsyncWebServer* webServer;
+
+    /**
+     * @brief Pointer to the WebSocket handler (manages the /mqtt endpoint).
+     */
     AsyncWebSocket* ws;
 
-    // Mapa de enrutamiento: ID de WebSocket -> Instancia de Transporte
+    /**
+     * @brief Routing Map: WebSocket Client ID -> Transport Instance.
+     * Used to dispatch global events to the correct specific transport.
+     */
     std::map<uint32_t, WsTransport*> activeTransports;
 
 public:
-    WsServerListener(uint16_t port) : port(port), webServer(nullptr), ws(nullptr) {}
+    /**
+     * @brief Construct a new Ws Server Listener.
+     * @param port The port to listen on (e.g., 8080).
+     */
+    WsServerListener(uint16_t port);
 
-    ~WsServerListener() {
-        stop();
-        if (webServer) delete webServer;
-        if (ws) delete ws;
-    }
+    /**
+     * @brief Destroy the Ws Server Listener.
+     * Stops the server and releases memory.
+     */
+    ~WsServerListener();
 
-    void begin() override {
-        webServer = new AsyncWebServer(port);
-        ws = new AsyncWebSocket("/mqtt"); // Ruta estándar para MQTT sobre WS
+    /**
+     * @brief Starts the WebSocket server.
+     * Initializes the WebServer, attaches the WebSocket handler to "/mqtt",
+     * binds the global event callback, and begins listening.
+     */
+    void begin() override;
 
-        // Callback Global de Eventos WebSocket
-        ws->onEvent([this](AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
-            this->onWsEvent(server, client, type, arg, data, len);
-        });
-
-        webServer->addHandler(ws);
-        webServer->begin();
-        log_i("WS Listener iniciado en puerto %u. Ruta: /mqtt", port);
-    }
-
-    void stop() override {
-        if (webServer) webServer->end();
-        // Limpiamos el mapa de referencias
-        activeTransports.clear();
-    }
+    /**
+     * @brief Stops the WebSocket server.
+     * Ends the server instance and clears the internal routing map.
+     */
+    void stop() override;
 
 private:
-    // Manejador del evento global
-    void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
-        
-        // 1. CONEXIÓN NUEVA
-        if (type == WS_EVT_CONNECT) {
-            // Creamos el adaptador
-            WsTransport* transport = new WsTransport(client);
-            
-            // Lo guardamos en nuestro mapa de enrutamiento
-            activeTransports[client->id()] = transport;
-
-            // Se lo entregamos al Broker (que creará el MqttClient)
-            if (broker) {
-                broker->acceptClient(transport);
-            } else {
-                client->close();
-                delete transport;
-            }
-        } 
-        
-        // 2. DESCONEXIÓN
-        else if (type == WS_EVT_DISCONNECT) {
-            // Buscamos el transporte asociado
-            auto it = activeTransports.find(client->id());
-            if (it != activeTransports.end()) {
-                WsTransport* transport = it->second;
-                
-                // Avisamos al transporte (que avisará al MqttClient -> Broker -> Cola de Borrado)
-                transport->handleDisconnect();
-                
-                // Lo borramos de NUESTRO mapa local
-                // (El objeto WsTransport será borrado por el destructor de MqttClient en el Broker)
-                activeTransports.erase(it);
-            }
-        } 
-        
-        // 3. DATOS ENTRANTES
-        else if (type == WS_EVT_DATA) {
-            AwsFrameInfo * info = (AwsFrameInfo*)arg;
-            
-            // MQTT siempre usa tramas binarias. Procesamos solo si es final y binario.
-            // (Nota: Para mensajes MQTT muy grandes fragmentados, habría que acumular, 
-            // pero para empezar esto cubre el 99% de los casos).
-            if (info->final && info->index == 0 && info->len == len && info->opcode == WS_BINARY) {
-                
-                auto it = activeTransports.find(client->id());
-                if (it != activeTransports.end()) {
-                    // Inyectamos los datos en el transporte
-                    it->second->handleIncomingData(data, len);
-                }
-            }
-        }
-    }
+    /**
+     * @brief Internal handler for Global WebSocket Events.
+     * This method acts as a dispatcher/router. It receives events for ALL clients
+     * and forwards them to the correct `WsTransport` based on the client ID.
+     * * @param server The WebSocket handler instance.
+     * @param client The specific client that triggered the event.
+     * @param type The type of event (CONNECT, DISCONNECT, DATA).
+     * @param arg Event specific argument (e.g., frame info).
+     * @param data Pointer to the data buffer.
+     * @param len Length of the data.
+     */
+    void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len);
 };
 
 
