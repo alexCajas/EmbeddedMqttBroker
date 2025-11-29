@@ -17,10 +17,17 @@
 ### doing
 
 * Migrate MqttBroker to asyncTCP:
+  * Adapter pattern --> done
+  * issues with test_tow_client_conextion.sh:
+    * There are some packets lost, probably is needed an outBox vector.
+
+* WebSocket MqttBroker:
+  * 
 
 
 
 ### done
+
 
 #### 26/11/2025
 
