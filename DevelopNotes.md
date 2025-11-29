@@ -16,9 +16,6 @@
 
 ### doing
 
-* _publishMessageImpl:
-  * This O(N*M) loop is a temporary inefficiency due to mapping IDs vs Pointers Future optimization: Store MqttClient* in the Trie directly.
-
 * Migrate MqttBroker to asyncTCP:
   * Adapter pattern --> done
   * issues with test_tow_client_conextion.sh:
@@ -27,11 +24,16 @@
 
 ### done
 
+#### 29/11/2025
 
-#### 26/11/2025
+* _publishMessageImpl:
+  * This O(N*M) loop is a temporary inefficiency due to mapping IDs vs Pointers Future optimization: Store MqttClient* in the Trie directly.
+
 
 * WebSocket MqttBroker:
   * try to improve search client in wsListener--> it is no need, map find in O(log n) time.
+
+#### 26/11/2025
 
 
 * There aren't workers for hard task:

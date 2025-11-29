@@ -938,7 +938,7 @@ private:
      * @param topic where is looking for in the tree.
      * @param index where start the topic level.
      */
-    void matchWithPlusWildCard(std::vector<int>* clientsIds,String topic, int index);
+    void matchWithPlusWildCard(std::vector<MqttClient*>* clients,String topic, int index);
     
     /**
      * @brief When some client subscribe to a topic usin "#" wildcard, the tree
@@ -947,7 +947,7 @@ private:
      * @param clientsIds vector where store the id of mqttClients.
      * @param topic where is looking for in the tree.
      */
-    void matchWithNumberSignWildCard(std::vector<int>* clientsIds,String topic);
+    void matchWithNumberSignWildCard(std::vector<MqttClient*>* clients,String topic);
 
 public:
     NodeTrie();
@@ -1005,7 +1005,7 @@ public:
      * @param topic that clients are subscribed.
      * @param index where start the proccesing of topic.
      */
-    void findSubscribedMqttClients(std::vector<int>*clientsIds, String topic, int index);
+    void findSubscribedMqttClients(std::vector<MqttClient*>* clients, String topic, int index);
 
     void unSubscribeMqttClient(MqttClient * mqttClient){
         subscribedClients->erase(mqttClient->getId());
@@ -1081,7 +1081,7 @@ public:
      * @param topic that mqttClients are subscribed.
      * @return std::vector<int>* vector where are all id of the mqttClients subscribed to this topic.
      */
-    std::vector<int>* getSubscribedMqttClients(String topic);
+    std::vector<MqttClient*>* getSubscribedMqttClients(String topic);
 
 };
 

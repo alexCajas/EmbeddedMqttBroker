@@ -222,29 +222,23 @@ void MqttBroker::_publishMessageImpl(PublishMqttMessage* msg) {
     String topic = msg->getTopic().getTopic();
     
     // 1. Query the Trie to find interested subscribers
-    std::vector<int>* clientsSubscribedIds = topicTrie->getSubscribedMqttClients(topic);
+    std::vector<MqttClient*>* subscribers = topicTrie->getSubscribedMqttClients(topic);
 
-    if (clientsSubscribedIds) {
-        log_v("Worker: Publishing topic %s to %i clients", topic.c_str(), clientsSubscribedIds->size());
+    if (subscribers && !subscribers->empty()) {
+        log_v("Worker: Publishing topic %s to %i clients", topic.c_str(), subscribers->size());
 
         // 2. Iterate clients (Protected Read)
         if (xSemaphoreTake(clientSetMutex, portMAX_DELAY) == pdTRUE) {
             
-            // Note: This O(N*M) loop is a temporary inefficiency due to mapping IDs vs Pointers.
-            // Future optimization: Store MqttClient* in the Trie directly.
-            for (int targetId : *clientsSubscribedIds) {
-                for (auto const& [transport, client] : clients) {
-                    if (client->getId() == targetId) {
-                        if (client->getState() == STATE_CONNECTED) {
-                            client->publishMessage(msg);
-                        }
-                        break; 
-                    }
+            // 3. Publish to each subscriber
+            for (MqttClient* client : *subscribers) {
+                if (client && client->getState() == STATE_CONNECTED) {
+                    client->publishMessage(msg);
                 }
             }
             xSemaphoreGive(clientSetMutex);
         }
-        delete clientsSubscribedIds;
+        delete subscribers;
     }
     
     // Important: Delete the message object here, as the broker took ownership.
