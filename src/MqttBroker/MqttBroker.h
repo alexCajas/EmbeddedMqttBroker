@@ -699,6 +699,9 @@ public:
      */
     void publishMessage(PublishMqttMessage *publishMessage);
 
+    /**
+     * @brief Sends a SUBACK packet to the client.
+     */
     void sendSubAck(SubscribeMqttMessage * subscribeMqttMessage);
 
     /**
