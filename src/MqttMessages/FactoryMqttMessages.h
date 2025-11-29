@@ -4,6 +4,7 @@
 #include "MqttMessage.h"
 #include "ConnectMqttMessage.h"
 #include "AckConnectMqttMessage.h"
+#include "AckSubscriptionMqttMessage.h"
 #include "PingResMqttMessage.h"
 #include "PingReqMqttMessage.h"
 #include "ReaderMqttPacket.h"
@@ -22,6 +23,7 @@ class FactoryMqttMessages {
         PingResMqttMessage getPingResMessage();
         PublishMqttMessage getPublishMqttMessage(uint8_t publishFlags);
         ConnectMqttMessage getConnectMqttMessage(ReaderMqttPacket &reader);
+        AckSubscriptionMqttMessage getSubAckMessage(uint16_t packetId);
 };
 
 #endif

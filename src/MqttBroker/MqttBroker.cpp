@@ -261,6 +261,13 @@ void MqttBroker::_subscribeClientImpl(SubscribeMqttMessage* msg, MqttClient* cli
         }
     }
 
+
+    // Send SUBACK to the client
+    // if client still connected, send SUBACK
+    if (client->getState() == STATE_CONNECTED) {
+        client->sendSubAck(msg); 
+    }
+
     delete msg; 
 }
 

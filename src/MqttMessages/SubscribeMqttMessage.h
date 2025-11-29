@@ -45,6 +45,10 @@ public:
     std::vector<MqttTocpic> getTopics(){
         return topics;
     }
+
+    uint16_t getMessageId(){
+        return messageId;
+    }
 };
 
 #endif //SUBSCRIBEMQTTMESSAGE_H

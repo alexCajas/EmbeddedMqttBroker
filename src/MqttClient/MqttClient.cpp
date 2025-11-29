@@ -119,6 +119,16 @@ void MqttClient::proccessOnMqttPacket(){
     }
 }
 
+
+void MqttClient::sendSubAck(SubscribeMqttMessage * subscribeMqttMessage) {
+    uint16_t packetId = subscribeMqttMessage->getMessageId();
+    AckSubscriptionMqttMessage subAck = messagesFactory.getSubAckMessage(packetId);
+    String packet = subAck.buildMqttPacket();
+    sendPacketByTcpConnection(packet);
+    
+    log_v("Client %i: Sent SUBACK for PacketID %u", clientId, packetId);
+}
+
 void MqttClient::publishMessage(PublishMqttMessage* publishMessage){
     // Serializes the message object into bytes and sends it
     sendPacketByTcpConnection(publishMessage->buildMqttPacket());

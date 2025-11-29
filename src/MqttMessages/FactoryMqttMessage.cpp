@@ -45,6 +45,10 @@ AckConnectMqttMessage FactoryMqttMessages::getAceptedAckConnectMessage(){
     return AckConnectMqttMessage(NOTSESIONPRESENT,CONNECTACCEPTED);
 }
 
+AckSubscriptionMqttMessage FactoryMqttMessages::getSubAckMessage(uint16_t packetId){
+    return AckSubscriptionMqttMessage(packetId, 0x00); // 0x00 = Success QoS 0
+}
+
 PingResMqttMessage FactoryMqttMessages::getPingResMessage(){
     return PingResMqttMessage();
 }
@@ -52,3 +56,4 @@ PingResMqttMessage FactoryMqttMessages::getPingResMessage(){
 PublishMqttMessage FactoryMqttMessages::getPublishMqttMessage(uint8_t publishFlags){
     return PublishMqttMessage(publishFlags);
 }
+

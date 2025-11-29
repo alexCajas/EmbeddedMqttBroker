@@ -699,6 +699,8 @@ public:
      */
     void publishMessage(PublishMqttMessage *publishMessage);
 
+    void sendSubAck(SubscribeMqttMessage * subscribeMqttMessage);
+
     /**
      * @brief Processes a SUBSCRIBE request from this client.
      * * Delegates the subscription logic (updating the Trie) to the Broker.
