@@ -214,46 +214,52 @@ public:
     virtual void stop() = 0;
 };
 
+/**
+ * @brief Concrete implementation of ServerListener for TCP connections.
+ * * This class wraps the `AsyncServer` from the AsyncTCP library. It is responsible
+ * for listening on a specific TCP port and handling raw incoming TCP connections.
+ * When a connection is established, it wraps the `AsyncClient` in a `TcpTransport`
+ * adapter and passes it to the `MqttBroker`.
+ */
 class TcpServerListener : public ServerListener {
 private:
+    /**
+     * @brief The port number to listen on.
+     */
     uint16_t port;
+
+    /**
+     * @brief Pointer to the underlying AsyncTCP server instance.
+     */
     AsyncServer* server;
 
 public:
-    TcpServerListener(uint16_t port) : port(port), server(nullptr) {}
+    /**
+     * @brief Construct a new Tcp Server Listener.
+     * * @param port The TCP port to listen on (default MQTT is 1883).
+     */
+    TcpServerListener(uint16_t port);
 
-    ~TcpServerListener() {
-        stop();
-        if (server) delete server;
-    }
+    /**
+     * @brief Destroy the Tcp Server Listener.
+     * Stops the server and releases allocated memory.
+     */
+    ~TcpServerListener();
 
-    void begin() override {
-        if (!server) server = new AsyncServer(port);
+    /**
+     * @brief Starts the TCP server.
+     * * This method initializes the `AsyncServer`, sets up the `onClient` callback
+     * to handle new connections, and begins listening on the specified port.
+     * When a client connects, it creates a `TcpTransport` and notifies the Broker.
+     */
+    void begin() override;
 
-        // Callback cuando alguien se conecta por TCP
-        server->onClient([this](void* arg, AsyncClient* client) {
-            if (this->broker) {
-                // 1. Convertimos AsyncClient -> TcpTransport
-                MqttTransport* transport = new TcpTransport(client);
-                
-                // 2. Se lo pasamos al Broker
-                this->broker->acceptClient(transport);
-            } else {
-                // Si no hay broker asignado, rechazamos
-                client->close();
-                delete client;
-            }
-        }, nullptr);
-
-        server->begin();
-        log_i("TCP Listener iniciado en puerto %u", port);
-    }
-
-    void stop() override {
-        if (server) server->end();
-    }
+    /**
+     * @brief Stops the TCP server.
+     * Stops listening for new connections.
+     */
+    void stop() override;
 };
-
 
 class WsServerListener : public ServerListener {
 private:
