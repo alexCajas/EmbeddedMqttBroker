@@ -433,68 +433,6 @@ public:
 };
 
 
-/**
- * @brief This class listen on port waiting to a new client, if connect mqtt
- * packet is malFormed, the connection will be refused.
- * 
- */
-class NewClientListenerTask : public Task{
-private:
-    WiFiServer *tcpServer;
-    MqttBroker *broker;
-    FactoryMqttMessages messagesFactory;
-    
-
-    /********************** Tcp communication ***************************/
-    void sendAckConnection(WiFiClient &tcpClient);
-    void sendPacketByTcpConnection(WiFiClient &client, String mqttPacket);
-
-public:
-
-    /**
-     * @brief Construct a new Client Listener Task object
-     * 
-     * @param broker where are all information to the MqttClients.
-     * @param port where initialize the listen.
-     */
-    NewClientListenerTask(MqttBroker *broker, uint16_t port);
-    ~NewClientListenerTask();
-    void run(void *data);
-
-    /**
-     * @brief Stop the WiFiServer socket, and the Task.
-     * 
-     */
-    void stopListen();
-    
-};
-
-
-/**
- * @brief How it is C++, there isn't a garbage recolector, for this reason
- * it is necessary keep carrefuly with the dinamyc allocated memory, this class
- * free the allocated memory of a MqttClient object.
- */
-class FreeMqttClientTask : public Task{
-    private:   
-        MqttBroker *broker;
-        QueueHandle_t *deleteMqttClientQueue;
-    
-    public:
-        /**
-         * @brief Construct a new Free Mqtt Client Task object.
-         * 
-         * @param broker where are all information to the MqttClients objects.
-         * @param deleteMqttClientQueue FreeRTOS queue to sincronize Task, this queue
-         * sincronize the MqttClient outgoing object with the current Task. 
-         */
-        FreeMqttClientTask(MqttBroker *broker, QueueHandle_t *deleteMqttClientQueue);
-        void run (void * data);
-};
-
-
-
-
 /***************************************** MqttClient Class ***********************/
 
 
@@ -531,195 +469,213 @@ class Action{
 };
 
 
+/**
+ * @brief Defines the internal lifecycle states of an MQTT client connection.
+ * * This enum is used to implement the **State Pattern** within the `MqttClient`. 
+ * It ensures that the protocol strictness is maintained: a client cannot perform 
+ * any actions (Publish, Subscribe) until it has successfully completed the 
+ * MQTT Handshake (CONNECT packet).
+ */
 enum MqttClientState {
-    STATE_PENDING,  // Esperando CONNECT válido
-    STATE_CONNECTED // Autenticado y operando
+    /**
+     * @brief Initial state waiting for the MQTT Handshake.
+     * * The client enters this state immediately after the TCP connection is accepted.
+     * In this state, the Broker expects the **first** received packet to be a valid 
+     * `CONNECT` message. If any other packet type is received, or if the `CONNECT` 
+     * packet is malformed, the client will be disconnected immediately.
+     */
+    STATE_PENDING,
+
+    /**
+     * @brief Authenticated and operational state.
+     * * The client transitions to this state after a valid `CONNECT` packet is processed 
+     * and a `CONNACK` has been sent. In this state, the client is fully authorized 
+     * to send `PUBLISH`, `SUBSCRIBE`, `PINGREQ`, and other MQTT control packets. 
+     * The Keep-Alive timer is active in this state.
+     */
+    STATE_CONNECTED
 };
 
 /**
- * @brief Class to abstract a tcp client of this server and his
- * fetaures like:
- *      subscribed topics and qos
- *      will topic
- *      will message
- *      keepAlive
- *      etc...
- * 
+ * @brief Represents a single connected MQTT Client.
+ * * This class acts as the **Session Manager** for an MQTT connection. It is responsible for:
+ * 1. Managing the lifecycle of the connection (Handshake vs. Operational state).
+ * 2. Parsing incoming byte streams using `ReaderMqttPacket`.
+ * 3. Maintaining client state (Subscriptions, KeepAlive, Client ID).
+ * 4. acting as the bridge between the abstract Network Layer (`MqttTransport`) 
+ * and the logic layer (`MqttBroker`).
+ * * It is agnostic to the underlying protocol (TCP or WebSocket) thanks to the 
+ * `MqttTransport` abstraction.
  */
 class MqttClient
 {
 private:
-    // client id in the scope of this broker.
+    /** @brief Unique Client ID assigned by the Broker. */
     int clientId;
+
+    /** * @brief Abstract interface for network communication. 
+     * Can be an instance of `TcpTransport` or `WsTransport`.
+     */
     MqttTransport* transport;
+
+    /** @brief State machine parser for incoming MQTT packets. */
     ReaderMqttPacket *reader;
+
+    /** @brief Current internal state (STATE_PENDING or STATE_CONNECTED). */
     MqttClientState _state;
+
+    /** * @brief Pointer to the deletion queue. 
+     * @note In the latest architecture, the client calls `broker->queueClientForDeletion`, 
+     * so this member might be legacy depending on implementation details.
+     */
     QueueHandle_t *deleteMqttClientQueue;
 
+    /** @brief Maximum inactivity time (in seconds) allowed before disconnection. */
     uint16_t keepAlive;
+
+    /** @brief Timestamp (millis) of the last packet received from this client. */
     unsigned long lastAlive;
 
+    /** @brief Factory to create response messages (CONNACK, PINGRESP, etc.). */
     FactoryMqttMessages messagesFactory;
+
+    /** @brief Current action being processed (Strategy Pattern for packet handling). */
     Action *action;
     
-
-    // vector where are, all nodes where is present the current
-    // client, is used to make it easy to release 
-    // subscribedMqttClients map, when client desconnets.
+    /**
+     * @brief Registry of Trie Nodes this client is subscribed to.
+     * Used to efficiently unsubscribe the client from the Topic Trie 
+     * upon disconnection without searching the entire tree.
+     */
     std::vector<NodeTrie*> nodesToFree;
 
+    /** @brief Pointer to the main Broker instance (The Owner). */
     MqttBroker *broker;
+
     /**
-     * @brief Send a mqtt packet over
-     * tcpConnection, the mqtt packet is stored in String class,
-     * but tcpConnection can only send bytes buffer, String have
-     * a method to get byteBuffers from him self.
-     * 
-     * The current implementation is aceptable for qos0, because broker lose the message if it doesn't has enought space
-     * improve this part to qos1 and qos2.
-     * 
-     * @param mqttPacket to send over tcpConnection.
+     * @brief Sends a serialized MQTT packet over the network.
+     * * It uses the `transport` abstraction to send data. 
+     * @note **QoS 0 Implementation:** Currently, if the transport buffer is full,
+     * the packet is dropped to prevent blocking the asynchronous loop. 
+     * Future improvements for QoS 1/2 should implement an Outbox queue here.
+     * * @param mqttPacket The raw string/bytes of the MQTT packet to send.
      */
     void sendPacketByTcpConnection(String mqttPacket);
 
     /**
-     * @brief Callback to process mqtt packet readed from tcpConnection.
+     * @brief Operational Callback: Processes standard MQTT packets.
+     * * This method is the callback for the `ReaderMqttPacket` when the client 
+     * is in `STATE_CONNECTED`. It uses `ActionFactory` to execute logic 
+     * for PUBLISH, SUBSCRIBE, PINGREQ, etc.
      */
     void proccessOnMqttPacket();
 
     /**
-     * @brief Callback to process connect mqtt packet readed from tcpConnection. The first
-     * mqtt packet that broker receive from a client must be a connect mqtt packet.
+     * @brief Handshake Callback: Processes the initial CONNECT packet.
+     * * This method is the callback for the `ReaderMqttPacket` when the client 
+     * is in `STATE_PENDING`. It validates that the first packet is strictly 
+     * a CONNECT packet. If valid, it transitions the state to CONNECTED; 
+     * otherwise, it disconnects the client.
      */
     void processOnConnectMqttPacket();
     
-    /** 
-     * @brief Initialize all tcpConnection callbacks.
-     */
-    void initTCPCallbacks();
 
 public:
 
     /**
-     * @brief Construct a new Mqtt Client object
-     * 
-     * @param tcpConnection socket that connect the current mqtt client to the broker.
-     * @param deleteMqttClientQueue FreeRTOS queue to sincronize the MqttClient class with
-     * FreeMqttClientTask class. 
-     * @param clientId unique id for this new client in the scope of the broker.
-     * @param keepAlive max time that the broker wait to a mqtt client, if mqtt client doesn't send
-     * any message to the broker in this time, broker will close the tcp connection.
+     * @brief Construct a new Mqtt Client object.
+     * * Initializes the client, sets up the `ReaderMqttPacket`, and configures
+     * the callbacks on the `MqttTransport` to bind network events to this object.
+     * * @param transport The abstract network wrapper (TCP or WS) created by the Listener.
+     * @param clientId The unique ID assigned by the Broker.
+     * @param broker Pointer to the managing Broker instance.
      */
     MqttClient(MqttTransport* transport, int clientId, MqttBroker * broker);
 
+    /**
+     * @brief Destroy the Mqtt Client object.
+     * * Cleans up resources, unsubscribes from all topics in the Trie, 
+     * and closes/deletes the underlying transport.
+     */
     ~MqttClient();
 
     /**
-     * @brief Get the id of the client.
-     * 
-     * @return int id of the client.
+     * @brief Get the unique Client ID.
+     * @return int The client ID.
      */
     int getId(){return clientId;}
 
     /**
-     * @brief Notify to the listeners of this MqttClient the new publish
-     * message event ocurred, acording to Delegate Model Event GRASP.
-     * 
-     * @param publishMessage PublishMqttMessage recived. 
-     * @return * void 
+     * @brief Notifies the Broker that a PUBLISH message has been received.
+     * * This delegates the routing logic to the Broker, which will find 
+     * matching subscribers.
+     * * @param publishMessage The parsed Publish message object.
      */
     void notifyPublishRecived(PublishMqttMessage *publishMessage);
 
     /**
-     * @brief When the mqtt client disconnects, its should be removed from map structure
-     * and its allocated memory should be freed. This method notifies the corresponding task 
-     * that this mqtt client should be removed.
-     * 
-     */
-    void notifyDeleteClient(){
-        //log_v("Notify broker to delete client: %i", clientId);
-        //xQueueSend((*deleteMqttClientQueue), &clientId, 0); // no blocking
-        Serial.println("To implemnte notifyDeleteClient");
-    }
-
-    /**
-     * @brief Check the conecction state and available data
-     * from tcpConnection.
-     * 
-     * @return uint8_t WiFiClient.connected() to indiciate the
-     *         state of tcp connection.
-     */
-    uint8_t checkConnection();
-
-    /**
-     * @brief When broker received a publish request, borker need
-     * to forward it to interested clients. This method checks that
-     * the current client is interested in the message and forwards to
-     * them if is so.
-     * 
-     * @param publishMessage that check.
+     * @brief Sends a PUBLISH message TO this client.
+     * * Called by the Broker/Worker when this client is identified as a subscriber
+     * for a topic. It serializes the message and sends it via the transport.
+     * * @param publishMessage The message object to send.
      */
     void publishMessage(PublishMqttMessage *publishMessage);
 
     /**
-     * @brief Subscribe to an topic.
-     * 
-     * @param subscribeMqttMessage 
+     * @brief Processes a SUBSCRIBE request from this client.
+     * * Delegates the subscription logic (updating the Trie) to the Broker.
+     * * @param subscribeMqttMessage The parsed Subscribe packet.
      */
     void subscribeToTopic(SubscribeMqttMessage * subscribeMqttMessage);
 
     /**
-     * @brief Send a mqtt ping response packet.
-     * 
+     * @brief Sends a PINGRESP packet to the client.
+     * Response to a PINGREQ to keep the connection alive.
      */
     void sendPingRes();    
     
-
     /**
-     * @brief close tcpConnection.
-     * 
+     * @brief Forcibly closes the network connection.
+     * This will trigger the `onDisconnect` callback in the transport layer,
+     * eventually leading to the cleanup of this object.
      */
     void disconnect();
 
+    /**
+     * @brief Registers a Trie Node to this client.
+     * * When the client subscribes to a topic, the Trie node is added here.
+     * This allows for fast unsubscription (cleanup) when the client disconnects.
+     * * @param node Pointer to the NodeTrie.
+     */
     void addNode(NodeTrie *node){
         nodesToFree.push_back(node);
     }
 
+    /**
+     * @brief Sets the Keep Alive interval.
+     * Usually called after parsing the CONNECT packet.
+     * @param keepAlive Time in seconds.
+     */
     void setKeepAlive(uint16_t keepAlive){
         this->keepAlive = keepAlive;
     }
 
-    
+    /**
+     * @brief Checks if the client has timed out.
+     * * Called periodically by the Broker's Worker. It compares the current time
+     * against `lastAlive`. If the limit (1.5x KeepAlive) is exceeded, 
+     * it triggers disconnection.
+     * * @param currentMillis The current system time.
+     * @return true if the client is still alive, false if disconnected.
+     */
     bool checkKeepAlive(unsigned long currentMillis);
     
-
+    /**
+     * @brief Gets the current lifecycle state.
+     * @return MqttClientState (PENDING or CONNECTED).
+     */
     MqttClientState getState() { return _state; }
-};
 
-/**
- * @brief Task that listen on tcp socket, wating for a new mqtt message,
- * when socket is down, this task start the logic to remove this client and 
- * free his allocated memory. 
- */
-class TCPListenerTask : public Task{
-    private:
-        MqttClient * mqttClient;
-    
-    public:
-
-        /**
-         * @brief Construct a new Task TCP Listener object
-         * 
-         * @param mqttClient that has the tcp socket.
-         */
-        TCPListenerTask(MqttClient *mqttClient);
-
-        /**
-         * @brief Method that the task run indefinitely.
-         * 
-         * @param data 
-         */
-        void run(void * data);
 };
 
 
