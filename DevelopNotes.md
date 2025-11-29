@@ -22,7 +22,7 @@
     * There are some packets lost, probably is needed an outBox vector.
 
 * WebSocket MqttBroker:
-  * 
+  * try to improve search client in wsListener.
 
 
 

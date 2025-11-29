@@ -11,6 +11,7 @@
 #include "MqttMessages/PublishMqttMessage.h"
 #include "TransportLayer/MqttTransport.h"
 #include "TransportLayer/TcpTransport.h"
+#include "TransportLayer/WsTransport.h"
 namespace mqttBrokerName{
 
 // Depends of your architecture, max num clients is exactly the 
@@ -34,6 +35,8 @@ class TCPListenerTask;
 class Action;
 class ServerListener;
 class TcpServerListener;
+class WsServerListener;
+
 enum BrokerEventType {
     EVENT_PUBLISH,
     EVENT_SUBSCRIBE
@@ -225,6 +228,102 @@ public:
         if (server) server->end();
     }
 };
+
+
+class WsServerListener : public ServerListener {
+private:
+    uint16_t port;
+    AsyncWebServer* webServer;
+    AsyncWebSocket* ws;
+
+    // Mapa de enrutamiento: ID de WebSocket -> Instancia de Transporte
+    std::map<uint32_t, WsTransport*> activeTransports;
+
+public:
+    WsServerListener(uint16_t port) : port(port), webServer(nullptr), ws(nullptr) {}
+
+    ~WsServerListener() {
+        stop();
+        if (webServer) delete webServer;
+        if (ws) delete ws;
+    }
+
+    void begin() override {
+        webServer = new AsyncWebServer(port);
+        ws = new AsyncWebSocket("/mqtt"); // Ruta estándar para MQTT sobre WS
+
+        // Callback Global de Eventos WebSocket
+        ws->onEvent([this](AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
+            this->onWsEvent(server, client, type, arg, data, len);
+        });
+
+        webServer->addHandler(ws);
+        webServer->begin();
+        log_i("WS Listener iniciado en puerto %u. Ruta: /mqtt", port);
+    }
+
+    void stop() override {
+        if (webServer) webServer->end();
+        // Limpiamos el mapa de referencias
+        activeTransports.clear();
+    }
+
+private:
+    // Manejador del evento global
+    void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
+        
+        // 1. CONEXIÓN NUEVA
+        if (type == WS_EVT_CONNECT) {
+            // Creamos el adaptador
+            WsTransport* transport = new WsTransport(client);
+            
+            // Lo guardamos en nuestro mapa de enrutamiento
+            activeTransports[client->id()] = transport;
+
+            // Se lo entregamos al Broker (que creará el MqttClient)
+            if (broker) {
+                broker->acceptClient(transport);
+            } else {
+                client->close();
+                delete transport;
+            }
+        } 
+        
+        // 2. DESCONEXIÓN
+        else if (type == WS_EVT_DISCONNECT) {
+            // Buscamos el transporte asociado
+            auto it = activeTransports.find(client->id());
+            if (it != activeTransports.end()) {
+                WsTransport* transport = it->second;
+                
+                // Avisamos al transporte (que avisará al MqttClient -> Broker -> Cola de Borrado)
+                transport->handleDisconnect();
+                
+                // Lo borramos de NUESTRO mapa local
+                // (El objeto WsTransport será borrado por el destructor de MqttClient en el Broker)
+                activeTransports.erase(it);
+            }
+        } 
+        
+        // 3. DATOS ENTRANTES
+        else if (type == WS_EVT_DATA) {
+            AwsFrameInfo * info = (AwsFrameInfo*)arg;
+            
+            // MQTT siempre usa tramas binarias. Procesamos solo si es final y binario.
+            // (Nota: Para mensajes MQTT muy grandes fragmentados, habría que acumular, 
+            // pero para empezar esto cubre el 99% de los casos).
+            if (info->final && info->index == 0 && info->len == len && info->opcode == WS_BINARY) {
+                
+                auto it = activeTransports.find(client->id());
+                if (it != activeTransports.end()) {
+                    // Inyectamos los datos en el transporte
+                    it->second->handleIncomingData(data, len);
+                }
+            }
+        }
+    }
+};
+
 
 /*********************** Tasks **************************/
 
