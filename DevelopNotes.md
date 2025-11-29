@@ -20,7 +20,9 @@
   * Adapter pattern --> done
   * issues with test_tow_client_conextion.sh:
     * There are some packets lost, probably is needed an outBox vector:
-      * try with no logs
+      * try with no logs: there less lost, but it doesn't solve:
+        * Here the explanation: Task + WiFiClient is autoblocking, so it adapts to wireless velocity, but AsyncTCP doesn't wait, so it only push message and continue even if wireless card are full, but is normal in an async connection.
+        * The solution is outbox. 
 
 ### done
 
