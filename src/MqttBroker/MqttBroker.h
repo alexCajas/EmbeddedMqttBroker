@@ -12,6 +12,7 @@
 #include "TransportLayer/MqttTransport.h"
 #include "TransportLayer/TcpTransport.h"
 #include "TransportLayer/WsTransport.h"
+
 namespace mqttBrokerName{
 
 // Depends of your architecture, max num clients is exactly the 
@@ -37,16 +38,49 @@ class ServerListener;
 class TcpServerListener;
 class WsServerListener;
 
+/**
+ * @brief Defines the types of asynchronous events handled by the Worker Task.
+ */
 enum BrokerEventType {
+    /**
+     * @brief A Publish packet received from a client that needs to be distributed.
+     */
     EVENT_PUBLISH,
+
+    /**
+     * @brief A Subscribe packet received from a client that needs to be processed against the Trie.
+     */
     EVENT_SUBSCRIBE
 };
 
+/**
+ * @brief Data structure used to pass tasks from the Network Thread (Core 1) 
+ * to the Worker Thread (Core 0).
+ * * This struct is designed to be lightweight. It uses a **union** to save memory,
+ * assuming that a single event can only be of one type at a time.
+ */
 struct BrokerEvent {
+    /**
+     * @brief The type of event (PUBLISH or SUBSCRIBE).
+     * This determines which member of the 'message' union is valid.
+     */
     BrokerEventType type;
-    MqttClient* client; // Quién origina la acción (o quién se suscribe)
+
+    /**
+     * @brief Pointer to the client associated with this event.
+     * - For SUBSCRIBE: It is the client requesting the subscription.
+     * - For PUBLISH: It is usually nullptr (as broadcast doesn't depend on source), 
+     * or the source client if access control is needed.
+     */
+    MqttClient* client; 
     
-    // Usamos una union para ahorrar memoria (o es uno o es el otro)
+    /**
+     * @brief Polymorphic container for the message object.
+     * * @note **Memory Management Rule:** The objects pointed to by this union 
+     * MUST be allocated on the Heap (using `new`). The Worker Task assumes 
+     * ownership of these pointers and is responsible for `delete`-ing them 
+     * after processing.
+     */
     union {
         PublishMqttMessage* pubMsg;
         SubscribeMqttMessage* subMsg;
