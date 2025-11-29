@@ -1,44 +1,46 @@
 #include "MqttBroker.h"
 
-
 using namespace mqttBrokerName;
 
-// --- CONSTRUCTOR ---
 MqttBroker::MqttBroker(ServerListener* listener) {
     this->maxNumClients = MAXNUMCLIENTS;
     this->listener = listener;
     
-    // Configuramos el listener para que nos avise (Inyección de dependencia)
+    // Inject dependencies: The listener needs a reference back to the broker
+    // to notify when new clients connect.
     if (this->listener) {
         this->listener->setBroker(this);
     }
     
     topicTrie = new Trie();
 
-    // 1. Crear Colas
-    // Aumentamos tamaño para evitar cuellos de botella en ráfagas
-    deleteMqttClientQueue = xQueueCreate(20, sizeof(MqttTransport*)); // OJO: Ahora guardamos puntero al transporte como clave
+    // 1. Create Queues
+    // deleteMqttClientQueue stores pointers to MqttTransport objects that need cleanup.
+    deleteMqttClientQueue = xQueueCreate(20, sizeof(MqttTransport*)); 
     if (!deleteMqttClientQueue) {
         log_e("Failed to create delete queue"); ESP.restart();
     }
 
+    // brokerEventQueue stores pointers to BrokerEvent structs for the Worker.
     brokerEventQueue = xQueueCreate(50, sizeof(BrokerEvent*)); 
     if (!brokerEventQueue) {
         log_e("Failed to create brokerEventQueue"); ESP.restart();
     }
 
-    // 2. Crear Mutex
+    // 2. Create Mutex
+    // Required to protect the 'clients' map from concurrent access by Core 1 (Network) and Core 0 (Worker).
     clientSetMutex = xSemaphoreCreateMutex();
     if (!clientSetMutex) {
         log_e("Failed to create mutex"); ESP.restart();
     }
 
-    // 3. Instanciar Worker (Core 0)
+    // 3. Instantiate Worker (Core 0)
+    // The worker task handles heavy processing to keep the network loop non-blocking.
     this->checkMqttClientTask = new CheckMqttClientTask(this);
     this->checkMqttClientTask->setCore(0);
 }
 
-// --- DESTRUCTOR ---
+
 MqttBroker::~MqttBroker() {
     stopBroker();
 
@@ -46,7 +48,7 @@ MqttBroker::~MqttBroker() {
         delete checkMqttClientTask; 
     }
     
-    // El Broker es dueño del Listener, así que lo borramos
+    // The Broker owns the Listener, so we are responsible for deleting it.
     if (listener) {
         delete listener;
     }
@@ -55,16 +57,17 @@ MqttBroker::~MqttBroker() {
         delete topicTrie;
     }
     
-    // Limpiar clientes
+    // Clean up all active clients.
+    // Iterating and deleting here will close their transports and free memory.
     for (auto const& [transport, client] : clients) {
-        delete client; // Esto borrará también el transporte
+        delete client; 
     }
     clients.clear();
     
-    // Limpiar eventos pendientes
+    // Drain and clean up pending events in the queue to prevent leaks.
     BrokerEvent* event;
     while(xQueueReceive(brokerEventQueue, &event, 0) == pdPASS) {
-        // Nota: Deberíamos borrar el mensaje interno si es complejo
+        // Ideally, we should also delete the inner message objects (pubMsg/subMsg) here.
         delete event;
     }
     vQueueDelete(brokerEventQueue);
@@ -76,13 +79,13 @@ MqttBroker::~MqttBroker() {
 // --- CONTROL ---
 
 void MqttBroker::startBroker() {
-    // Arrancamos el Listener (Polimorfismo: TCP o WS)
+    // Start the specific network listener (TCP or WebSocket)
     if (listener) {
         listener->begin();
         log_i("MqttBroker Listener Started");
     }
 
-    // Arrancamos el Worker
+    // Start the background worker task
     checkMqttClientTask->start();
 }
 
@@ -95,31 +98,28 @@ void MqttBroker::stopBroker() {
     }
 }
 
-// --- GESTIÓN DE CLIENTES (Entrada) ---
+// --- CLIENT MANAGEMENT (Incoming Connections) ---
 
-/**
- * @brief Método llamado por el Listener cuando hay una nueva conexión.
- * Recibe un transporte abstracto (TCP o WS).
- */
 void MqttBroker::acceptClient(MqttTransport *transport) {
     
-    // 1. Validación de capacidad
+    // 1. Capacity check
     if (isBrokerFullOfClients()) {
         log_w("Broker full. Rejecting client IP: %s", transport->getIP().c_str());
         transport->close();
-        delete transport; // Importante: borrar el wrapper si no lo aceptamos
+        delete transport; // Must delete the wrapper since we won't store it
         return;
     }
     
-    // 2. Sección Crítica: Añadir al mapa
+    // 2. Critical Section: Add to the map
     if (xSemaphoreTake(clientSetMutex, portMAX_DELAY) == pdTRUE) {
-        numClient++; // Generador simple de IDs (podría mejorar)
+        numClient++; 
         int newId = numClient;
 
-        // Instanciamos MqttClient pasándole la abstracción de transporte
+        // Instantiate MqttClient, injecting the abstract transport.
+        // The MqttClient constructor will configure the transport callbacks.
         MqttClient *mqttClient = new MqttClient(transport, newId, this);
         
-        // Usamos el puntero de transporte como clave única del mapa
+        // Store in the map using the transport pointer as the unique key.
         clients[transport] = mqttClient;
         
         xSemaphoreGive(clientSetMutex);
@@ -132,23 +132,23 @@ void MqttBroker::acceptClient(MqttTransport *transport) {
     }
 }
 
-// --- BORRADO DE CLIENTES (Salida) ---
+// --- CLIENT DELETION (Cleanup) ---
 
 void MqttBroker::queueClientForDeletion(MqttTransport* transportKey) {
-    // Encolamos el puntero del transporte para identificar al cliente
+    // Push the transport pointer to the queue. The Worker will process this later.
     xQueueSend(deleteMqttClientQueue, &transportKey, 0);
 }
 
 void MqttBroker::deleteMqttClient(MqttTransport* transportKey) {
     MqttClient* clientToDelete = nullptr;
 
+    // Critical Section: Remove from map
     if (xSemaphoreTake(clientSetMutex, portMAX_DELAY) == pdTRUE) {
-        // Buscamos por la clave de transporte
         auto it = clients.find(transportKey);
         
         if (it != clients.end()) {
             clientToDelete = it->second;
-            clients.erase(it); // Sacamos del mapa
+            clients.erase(it); // Remove the entry from the map
             log_i("Client removed from map.");
         } else {
             log_w("Client not found in map for deletion.");
@@ -156,20 +156,21 @@ void MqttBroker::deleteMqttClient(MqttTransport* transportKey) {
         xSemaphoreGive(clientSetMutex);
     }
 
-    // Borrado fuera del Mutex para evitar deadlocks
+    // Actual deletion happens OUTSIDE the mutex to prevent deadlocks
+    // (e.g., if the destructor needs to access other locked resources).
     if (clientToDelete != nullptr) {
-        delete clientToDelete; // El destructor de MqttClient limpiará el transporte
+        delete clientToDelete; // MqttClient destructor handles cleanup of Transport and Reader
         log_v("Client object memory freed.");
     }
 }
 
-// --- WORKER LOGIC (Core 0) ---
+// --- WORKER LOGIC ---
 
 bool MqttBroker::processDeletions() {
     MqttTransport* transportKey;
     bool workDone = false;
     
-    // Procesamos toda la cola de borrado pendiente
+    // Process all pending deletion requests
     while (xQueueReceive(deleteMqttClientQueue, &transportKey, 0) == pdPASS) {
         deleteMqttClient(transportKey);
         workDone = true;
@@ -180,8 +181,10 @@ bool MqttBroker::processDeletions() {
 void MqttBroker::processKeepAlives() {
     unsigned long now = millis();
 
+    // Protect map iteration
     if (xSemaphoreTake(clientSetMutex, 10 / portTICK_PERIOD_MS) == pdTRUE) {
         for (auto const& [transport, client] : clients) {
+            // Only check KeepAlive for fully connected clients
             if (client->getState() == STATE_CONNECTED) {
                 client->checkKeepAlive(now);
             }
@@ -194,7 +197,7 @@ bool MqttBroker::processBrokerEvents() {
     BrokerEvent* event;
     int count = 0;
     bool workDone = false;
-    const int MAX_BATCH = 10;
+    const int MAX_BATCH = 10; // Limit processing per loop to yield CPU
 
     while (count < MAX_BATCH && xQueueReceive(brokerEventQueue, &event, 0) == pdPASS) {
         if (event->type == EVENT_PUBLISH) {
@@ -204,48 +207,38 @@ bool MqttBroker::processBrokerEvents() {
             _subscribeClientImpl(event->message.subMsg, event->client);
         }
         
-        delete event; // Borramos el contenedor del evento
+        delete event; // Clean up the event container
         count++;
         workDone = true;
     }
     return workDone;
 }
 
-// --- IMPLEMENTACIONES INTERNAS (Lógica de Negocio) ---
+// --- INTERNAL LOGIC IMPLEMENTATIONS ---
 
 void MqttBroker::_publishMessageImpl(PublishMqttMessage* msg) {
     if (msg == nullptr) return;
 
     String topic = msg->getTopic().getTopic();
     
-    // 1. Consultar Trie (Seguro en Worker)
-    // Nota: El Trie devuelve un vector de punteros MqttClient* o IDs?
-    // Asumimos que devuelve punteros a MqttClient* para eficiencia
-    // Si devuelve IDs, habría que buscar en el mapa clients.
-    // Vamos a asumir que devuelve IDs (ints) como en tu código original.
+    // 1. Query the Trie to find interested subscribers
     std::vector<int>* clientsSubscribedIds = topicTrie->getSubscribedMqttClients(topic);
 
     if (clientsSubscribedIds) {
         log_v("Worker: Publishing topic %s to %i clients", topic.c_str(), clientsSubscribedIds->size());
 
-        // 2. Iterar Clientes (Protegido por Mutex para leer el mapa)
+        // 2. Iterate clients (Protected Read)
         if (xSemaphoreTake(clientSetMutex, portMAX_DELAY) == pdTRUE) {
             
-            // Esta parte es ineficiente si tenemos que buscar por ID en un mapa indexado por Transport*
-            // OPTIMIZACIÓN FUTURA: El Trie debería guardar MqttClient* directamente.
-            // Por ahora, hacemos un escaneo lineal o asumimos que podemos buscar.
-            
-            // PARCHE TEMPORAL: Iteramos todos los clientes para encontrar los IDs
-            // (Esto es lento O(N*M), deberíamos cambiar el mapa a <int, MqttClient*>
-            // o hacer que el Trie guarde punteros).
-            
+            // Note: This O(N*M) loop is a temporary inefficiency due to mapping IDs vs Pointers.
+            // Future optimization: Store MqttClient* in the Trie directly.
             for (int targetId : *clientsSubscribedIds) {
                 for (auto const& [transport, client] : clients) {
                     if (client->getId() == targetId) {
                         if (client->getState() == STATE_CONNECTED) {
                             client->publishMessage(msg);
                         }
-                        break; // ID encontrado
+                        break; 
                     }
                 }
             }
@@ -254,7 +247,8 @@ void MqttBroker::_publishMessageImpl(PublishMqttMessage* msg) {
         delete clientsSubscribedIds;
     }
     
-    delete msg; // ¡IMPORTANTE! Borramos el mensaje aquí
+    // Important: Delete the message object here, as the broker took ownership.
+    delete msg; 
 }
 
 void MqttBroker::_subscribeClientImpl(SubscribeMqttMessage* msg, MqttClient* client) {
@@ -263,7 +257,7 @@ void MqttBroker::_subscribeClientImpl(SubscribeMqttMessage* msg, MqttClient* cli
     std::vector<MqttTocpic> topics = msg->getTopics();
     NodeTrie *node;
     
-    // Acceso seguro al Trie (solo Worker)
+    // Access the Trie safely (serialized by the Worker thread)
     for(int i = 0; i < topics.size(); i++){
         node = topicTrie->subscribeToTopic(topics[i].getTopic(), client);
         
@@ -273,10 +267,10 @@ void MqttBroker::_subscribeClientImpl(SubscribeMqttMessage* msg, MqttClient* cli
         }
     }
 
-    delete msg; // ¡IMPORTANTE! Borramos el mensaje aquí
+    delete msg; 
 }
 
-// --- MÉTODOS PÚBLICOS DE ENCOLADO (Productores) ---
+// --- PUBLIC QUEUING METHODS (Producers) ---
 
 void MqttBroker::publishMessage(PublishMqttMessage * msg) {
     BrokerEvent* event = new BrokerEvent;
@@ -284,10 +278,11 @@ void MqttBroker::publishMessage(PublishMqttMessage * msg) {
     event->client = nullptr;
     event->message.pubMsg = msg;
 
+    // Send to queue
     if (xQueueSend(brokerEventQueue, &event, 0) != pdPASS) {
         log_w("Broker Queue Full! Dropping publish.");
         delete event;
-        delete msg;  
+        delete msg; // Prevent memory leak
     }
 }
 

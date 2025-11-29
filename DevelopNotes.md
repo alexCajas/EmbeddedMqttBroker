@@ -16,6 +16,9 @@
 
 ### doing
 
+* _publishMessageImpl:
+  * This O(N*M) loop is a temporary inefficiency due to mapping IDs vs Pointers Future optimization: Store MqttClient* in the Trie directly.
+
 * Migrate MqttBroker to asyncTCP:
   * Adapter pattern --> done
   * issues with test_tow_client_conextion.sh:
