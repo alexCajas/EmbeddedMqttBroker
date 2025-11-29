@@ -46,6 +46,17 @@ public:
         _client->onTimeout([this](void* arg, AsyncClient* c, uint32_t time) {
             if (_onDisconnect) _onDisconnect();
         });
+
+        
+        // 4. Ready to send notifications
+        _client->onAck([this](void* arg, AsyncClient* c, size_t len, uint32_t time){
+            if (_onReadyToSend) _onReadyToSend();
+        });
+
+        // 5. Poll event (also indicates readiness to send)
+        _client->onPoll([this](void* arg, AsyncClient* c){
+            if (_onReadyToSend) _onReadyToSend();
+        });
     }
 
     ~TcpTransport() {
@@ -57,11 +68,20 @@ public:
         }
     }
 
-    void send(const char* data, size_t len) override {
-        if (_client && _client->connected()) {
-            _client->write(data, len);
+size_t send(const char* data, size_t len) override {
+    if (_client && _client->canSend()) {
+        size_t written = _client->write(data, len);
+        if (written != len) {
+            log_e("TCP Partial Write! Tried: %u, Wrote: %u", len, written);
+        } else {
+            log_v("TCP Write OK: %u bytes", written); 
         }
+        return written;
+    } else {
+        log_e("TCP Send Failed: Client not ready/connected");
+        return 0;
     }
+}
 
     void close() override {
         if (_client) _client->close();

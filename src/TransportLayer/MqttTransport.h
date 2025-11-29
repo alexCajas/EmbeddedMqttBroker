@@ -24,6 +24,19 @@ protected:
      */
     std::function<void()> _onDisconnect;
 
+    /**
+     * @brief Callback triggered when the transport is ready to send more data.
+     *
+     * This event acts as the **Flow Control Signal**. It is invoked by the 
+     * underlying transport implementation (TcpTransport/WsTransport) when:
+     * 1. A TCP `ACK` is received, indicating buffer space has been freed.
+     * 2. The connection is polled and found to be idle/writable.
+     *
+     * The `MqttClient` listens to this event to trigger the draining of its 
+     * software `_outbox`.
+     */
+    std::function<void()> _onReadyToSend;
+
 public:
     virtual ~MqttTransport() {}
 
@@ -31,8 +44,9 @@ public:
      * @brief Sends raw bytes over the specific transport medium.
      * * @param data Pointer to the buffer containing the data to send.
      * @param len The size of the data in bytes.
+     * @return size_t The number of bytes actually sent.
      */
-    virtual void send(const char* data, size_t len) = 0;
+    virtual  size_t send(const char* data, size_t len) = 0;
 
     /**
      * @brief Closes the underlying network connection.
@@ -81,6 +95,17 @@ public:
      * * @param cb The function to call when the connection closes.
      */
     void setOnDisconnect(std::function<void()> cb) { _onDisconnect = cb; }
+
+    /**
+     * @brief Registers the Flow Control callback.
+     *
+     * The `MqttClient` uses this method to attach its `_drainOutbox` logic 
+     * to the transport's readiness events. This closes the loop for the 
+     * Store-and-Forward mechanism used during network congestion.
+     *
+     * @param cb The function to call when the transport can accept data.
+     */
+    void setOnReadyToSend(std::function<void()> cb) { _onReadyToSend = cb; }
 };
 
 #endif // MQTT_TRANSPORT_H

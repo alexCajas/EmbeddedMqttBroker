@@ -187,6 +187,9 @@ void MqttBroker::processKeepAlives() {
             // Only check KeepAlive for fully connected clients
             if (client->getState() == STATE_CONNECTED) {
                 client->checkKeepAlive(now);
+
+                // 2. Active Flow Control / Outbox Pumping
+                client->processOutbox();
             }
         }
         xSemaphoreGive(clientSetMutex);

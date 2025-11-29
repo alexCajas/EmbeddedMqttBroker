@@ -62,6 +62,11 @@ MqttClient::MqttClient(MqttTransport* transport, int clientId, MqttBroker * brok
         }
     });
 
+    // On Ready to Send: Attempt to drain the outbox
+    this->transport->setOnReadyToSend([this]() {
+            this->_drainOutbox();
+        });
+
     // On Disconnect: Notify Broker to schedule cleanup
     this->transport->setOnDisconnect([this]() {
         log_i("Client %i disconnected (Transport closed).", this->clientId);
@@ -148,20 +153,80 @@ void MqttClient::notifyPublishRecived(PublishMqttMessage *publishMessage){
 
 void MqttClient::sendPacketByTcpConnection(String mqttPacket){
     
-    if (transport && transport->connected()) {
-        size_t len = mqttPacket.length();
+    // 1. Safety Check: If transport is dead, clear buffer to free RAM.
+    if (!transport || !transport->connected()) {
+        _outbox.clear();
+        return;
+    }
 
-        // QoS 0 Protection: Check available buffer space before sending
-        if (transport->canSend() && transport->space() >= len) {
-            transport->send(mqttPacket.c_str(), len);
-        } 
-        else {
-            // Buffer full: Drop packet to avoid blocking the system
-            log_w("Client %i: Transport buffer full (%u bytes free). Packet dropped.", 
-                  clientId, transport->space());
+    // 2. FIFO Enforcement (Protocol Order Integrity)
+    // If the Outbox already has pending packets, we MUST queue this new packet 
+    // at the back. Sending it directly now would bypass previous messages, 
+    // corrupting the MQTT protocol state.
+    if (!_outbox.empty()) {
+        // Memory Protection: Cap the queue size
+        if (_outbox.size() < 50) {
+            _outbox.push_back(mqttPacket);
+        } else {
+            log_e("Client %i: Outbox overflow! Dropping packet.", clientId);
         }
-    } else {
-        log_w("Client %i: Transport not connected.", clientId);
+        
+        // Attempt to drain now, in case space just freed up
+        _drainOutbox();
+        return;
+    }
+
+    // 3. Fast Path (Direct Send)
+    // If the queue is empty, we try to write directly to the Network Stack 
+    // to avoid the overhead of copying to the std::deque.
+    size_t len = mqttPacket.length();
+
+    if (transport->canSend() && transport->space() >= len) {
+        // Attempt actual write. 
+        // We assume success only if the Transport confirms all bytes were written.
+        size_t written = transport->send(mqttPacket.c_str(), len);
+        
+        if (written == len) {
+            // Success: Packet transferred to kernel buffer. No buffering needed.
+            return;
+        }
+    } 
+    
+    // 4. Backpressure Handling (Buffering)
+    // If we reach here, either space() was low OR the write() failed/returned 0.
+    // We move the packet to Software RAM to retry later.
+    log_v("Client %i: Network busy. Buffering packet.", clientId);
+    _outbox.push_back(mqttPacket);
+}
+
+void MqttClient::_drainOutbox() {
+    if (!transport || !transport->connected()) return;
+
+    // Pump loop: Move data from RAM to Network until blocked or empty
+    while (!_outbox.empty()) {
+        String& nextPacket = _outbox.front();
+        size_t len = nextPacket.length();
+
+        // Check if Network Stack can accept this specific packet
+        if (transport->canSend() && transport->space() >= len) {
+            
+            // Attempt transmission
+            size_t written = transport->send(nextPacket.c_str(), len);
+            
+            if (written == len) {
+                // Success: Transaction complete. Remove from RAM.
+                _outbox.pop_front();
+            } else {
+                // Write Failed (Zero or Partial write):
+                // This happens if space() was an estimate or LwIP internal buffers are fragmented.
+                // Action: Abort immediately. Keep the packet at the front of the queue.
+                // We will retry on the next 'onReadyToSend' event or poll cycle.
+                break;
+            }
+        } else {
+            // Buffer Full: Stop pumping to avoid spin-locking.
+            break; 
+        }
     }
 }
 

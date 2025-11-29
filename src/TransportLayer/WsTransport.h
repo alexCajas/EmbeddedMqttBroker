@@ -39,11 +39,14 @@ public:
 
     // --- MqttTransport Interface Implementation ---
 
-    void send(const char* data, size_t len) override {
+    size_t send(const char* data, size_t len) override {
         // MQTT over WebSockets MUST be binary.
         if (_client && _client->status() == WS_CONNECTED) {
             _client->binary((uint8_t*)data, len);
+            return len;
         }
+
+        return 0;
     }
 
     void close() override {

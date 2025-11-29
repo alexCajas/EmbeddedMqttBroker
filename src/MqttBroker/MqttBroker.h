@@ -627,6 +627,22 @@ private:
      */
     std::vector<NodeTrie*> nodesToFree;
 
+    /**
+     * @brief Software Output Buffer (Outbox).
+     *
+     * This double-ended queue serves as a temporary storage buffer for serialized 
+     * MQTT packets that cannot be sent immediately due to network congestion 
+     * (e.g., when the TCP/WebSocket kernel buffer is full).
+     *
+     * It implements a **Store-and-Forward** mechanism to handle backpressure:
+     * 1. If the transport is busy, the packet is pushed to the back of this queue.
+     * 2. When the transport becomes ready (via ACK or Poll events), the queue is 
+     * drained in strict **FIFO (First-In, First-Out)** order.
+     *
+     * This ensures data integrity and prevents packet loss during high-traffic bursts.
+     */
+    std::deque<String> _outbox;
+
     /** @brief Pointer to the main Broker instance (The Owner). */
     MqttBroker *broker;
 
@@ -657,6 +673,18 @@ private:
      */
     void processOnConnectMqttPacket();
     
+    /**
+     * @brief Internal routine to flush pending packets from the Outbox.
+     *
+     * This method attempts to empty the `_outbox` queue by sending packets 
+     * to the underlying transport. It operates in a loop:
+     * 1. Checks if the transport is ready and has sufficient buffer space.
+     * 2. If yes, sends the packet at the front of the queue and removes it (pop).
+     * 3. If no, it aborts the loop to wait for the next `onAck` or `onPoll` event.
+     *
+     * This implements the "drain" phase of the **Backpressure** handling mechanism.
+     */
+    void _drainOutbox();
 
 public:
 
@@ -759,6 +787,18 @@ public:
      */
     MqttClientState getState() { return _state; }
 
+/**
+     * @brief Public trigger to attempt flushing the Outbox.
+     *
+     * This wrapper exposes the draining logic to external callers. It is typically 
+     * invoked in two scenarios:
+     * 1. **Reactive:** By the Transport's `onReadyToSend` callback (e.g., TCP ACK received).
+     * 2. **Active:** By the Broker's Worker loop (Maintenance) to periodically pump 
+     * data for protocols that might lack granular flow control events (like WebSockets).
+     */
+    void processOutbox() {
+        _drainOutbox();
+    }
 };
 
 
