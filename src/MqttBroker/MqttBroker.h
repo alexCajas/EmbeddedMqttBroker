@@ -116,7 +116,6 @@ public:
      * the data on connect mqtt packet.
      * 
      * @param tcpClient socket where is the connection to this client.
-     * @param connectMessage object where are all information to the accepetd connection and his client.
      */
     void addNewMqttClient(AsyncClient *client);
     
