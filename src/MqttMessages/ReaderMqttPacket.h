@@ -1,185 +1,245 @@
 #ifndef READERMQTTPACKET_H
 #define READERMQTTPACKET_H
 
-#include "WiFi.h"
-#include "MqttMessage.h"
-#include "MqttTocpic.h"
+#include <Arduino.h>
+#include <functional>     // Required for std::function (our callback)
+#include "MqttTocpic.h"   // Keep for decode utils
+
 /**
- * @brief Class to Read mqtt packet in byte coding, from tcp connection.
- * tcp connection provides a stream of bytes that we can left in byte buffers.
- * This class also provide utils methods to help in the decode of the mqtt packet
- * readed.
+ * @brief MQTT Packet State Machine Parser.
+ *
+ * This class is designed to parse an MQTT packet from an asynchronous stream
+ * of bytes (e.g., from AsyncTCP's onData event). It builds a complete
+ * MQTT packet in an internal buffer and triggers a callback when one
+ * full packet is ready to be processed.
  */
 class ReaderMqttPacket {
 
-    private:
+private:
+    /**
+     * @brief Internal states for the packet parsing state machine.
+     */
+    enum MqttPacketState {
+        WAITING_FIXED_HEADER,
+        WAITING_REMAINING_LENGTH,
+        WAITING_REMAINING_PACKET,
+        PACKET_READY
+    };
 
-        /**
-         * @brief fixedHeader byte.
-         * 
-         */
-        uint8_t fixedHeader[1];
+    /**
+     * @brief fixedHeader byte.
+     */
+    uint8_t fixedHeader[1];
 
-        /**
-         * @brief remaining lengt value to decode/encode. 
-         * 
-         */
-        size_t remainingLengt;        
+    /**
+     * @brief remaining lengt value, decoded from the stream.
+     */
+    size_t remainingLengt;
 
-        
-        /**
-         * @brief remaining packet, here are variable header and payload
-         * if it is needed in byte coding.
-         */
-        uint8_t * remainingPacket;
+    /**
+     * @brief remaining packet buffer (variable header and payload).
+     * This buffer is allocated once the remainingLengt is known.
+     */
+    uint8_t * remainingPacket;
 
-        /**
-         * @brief read remainLengt field and decode the size of mqtt packet.
-         * @param client who is sendig the packet.
-         * @return size_t remaining size of mqtt packet to read.
-         */
-        size_t readRemainLengtSize(WiFiClient &client);
+    /**
+     * @brief Current state of the parser state machine.
+     */
+    MqttPacketState _state;
 
+    /**
+     * @brief Callback function to be executed when a full packet is ready.
+     */
+    std::function<void(void)> _onPacketReadyCallback;
 
-        /****************** decode ultils*************************/
+    // --- State machine variables for parsing remaining length ---
 
-        /**
-         * @brief Auxilar method that concatenate two bytes in one uint16_t variable.
-         * 
-         * @param msByte Most significant byte. 
-         * @param lsByte Lest significant byte.
-         * @return uint16_t result to concatenate msByte and lsByte.
-         */
-        uint16_t concatenateTwoBytes(uint8_t msByte, uint8_t lsByte);      
+    /**
+     * @brief Multiplier for decoding the variable-length 'remainingLength' field.
+     */
+    int _multiplier;
 
-        /**
-         * @brief Store a mqtt text field in a String buff, used to save 
-         *        the information throught staks's or heap's scope changes.
-         * 
-         * @param index where start the mqtt text field.
-         * @param textFieldLengt length of mqtt text field.
-         * @param textField String where the text field will store.
-         * @return int the index where finally the actual field and start the next
-         *         mqtt field. 
-         */
-        int bytesToString(int index, size_t textFieldLengt,String*textField);
+    /**
+     * @brief Flag to indicate if the 'remainingLength' field is complete.
+     */
+    bool _remLenComplete;
+
+    // --- State machine variables for filling the remainingPacket buffer ---
+
+    /**
+     * @brief Counter for how many bytes have been copied into 'remainingPacket' so far.
+     */
+    size_t _bytesReadSoFar;
 
 
+    /****************** Internal Parser Utils *************************/
 
-    public: 
+    /**
+     * @brief Resets the 'remainingLength' parser variables to their initial state.
+     */
+    void _resetRemLenParser();
 
-        ReaderMqttPacket();
-        ~ReaderMqttPacket();
-        
-        /**
-         * @brief Read bytes stream that represent a mqtt message packet.
-         * 
-         * @param client how is sending the mqtt packet. 
-         */
-        void readMqttPacket(WiFiClient &client);
+    /**
+     * @brief Processes a single byte for the variable-length 'remainingLength' field.
+     *
+     * @param byte The byte to process.
+     * @return true if the field is complete, false if more bytes are needed.
+     */
+    bool _parseRemainingLength(uint8_t byte);
 
-        /**
-         * @brief Get the Fixed Header like uint8_t.
-         * 
-         * @return uint8_t that represent fixed header.
-         */
-        uint8_t getFixedHeader (){
-            return fixedHeader[0];
-        }
+    /****************** Decode Utils (from original) *****************/
 
-        /**
-         * @brief Get the Remaining Packet.
-         * 
-         * @return uint8_t* 
-         */
-        uint8_t* getRemainingPacket(){
-            return remainingPacket;
-        }
+    /**
+     * @brief Auxilar method that concatenate two bytes in one uint16_t variable.
+     *
+     * @param msByte Most significant byte.
+     * @param lsByte Lest significant byte.
+     * @return uint16_t result to concatenate msByte and lsByte.
+     */
+    uint16_t concatenateTwoBytes(uint8_t msByte, uint8_t lsByte);
 
-        /**
-         * @brief Get the Remaining Packet Length
-         * 
-         * @return size_t 
-         */
-        size_t getRemainingPacketLength(){
-            return remainingLengt;
-        }
-        /**
-         * @brief Decode Mqtt packet coded in byte buffer.
-         * 
-         * @param client 
-         * @return MqttMessage 
-         */
-        MqttMessage decodeMqttPacket(WiFiClient &client);
-        
+    /**
+     * @brief Store a mqtt text field in a String buff.
+     *
+     * @param index where start the mqtt text field.
+     * @param textFieldLengt length of mqtt text field.
+     * @param textField String where the text field will be stored.
+     * @return int the index after the text field.
+     */
+    int bytesToString(int index, size_t textFieldLengt,String*textField);
 
-    /*************************decode utils******************/
 
-       /**
-         * @brief Extrat a variable mqtt text field, like client-id, password, userName
-         *        topic, the first two bytes of this fields containts the length of text to extract.
-         * 
-         * @param index where is the first byte of text field length.
-         * @param textField String where to copy the text field. 
-         * @return int, index where the current field ends and start the next
-         *         mqtt field. 
-         */
-        int decodeTextField(int index, String* textField);
+public:
 
-        /**
-         * @brief Get topic from mqtt packet.
-         * 
-         * @param index where start the lengt of mqtt topic field.
-         * @param topic MqttTopic where store the char* topic readed from tcpConnection.
-         * @return int the index where the current field ends and start the next
-             *         mqtt field.
-         */
-        int decodeTopic(int index,MqttTocpic *topic);
-        
-        /**
-         * @brief Extrat payLoad from bytes buffer that is encoding all mqtt variable header.
-         * 
-         * @param index where start the payload mqtt field. Note that the size of payLoad is calculated,
-         *        it is know the size of  variableHeader buff (remainingLengt), and using the above methos, it is
-         *        now know many bytes are readed, payLoad length is variableHeaderLength - index.     
-         * @param topic MqttTopic where store payload.
-         * @return int the index where the current field ends and start the next
-         *         mqtt field.  
-         */
-        int decodePayLoad(int index, MqttTocpic *topic);
+    /**
+     * @brief Construct a new Reader Mqtt Packet object.
+     *
+     * @param onPacketReadyCallback The function to call when one
+     * complete packet has been parsed and is ready.
+     */
+    ReaderMqttPacket(std::function<void(void)> onPacketReadyCallback);
+    ~ReaderMqttPacket();
 
-        /**
-         * @brief Extract qos level for a subscribe topic from raw mqtt packet in bytes buffer.
-         * 
-         * @param index where start the qos mqtt field.
-         * @param topic pointer to MqttTopic where store qos level.
-         * @return int the index where the current field ends and start the next
-         *         mqtt field. 
-         */
-        int decodeQosTopic(int index,MqttTocpic *topic);   
+    /**
+     * @brief Feeds new data from the asynchronous stream (onData) into
+     * the state machine.
+     *
+     * This method processes the incoming data, builds the packet,
+     * and will trigger the callback (potentially multiple times)
+     * if one or more complete packets are found in the stream.
+     *
+     * @param data Pointer to the new data buffer.
+     * @param len Length of the data in the buffer.
+     */
+    void addData(uint8_t* data, size_t len);
 
-        
-        /**
-         * @brief Get one byte from remaining buff and put into
-         * variable.
-         * 
-         * @param index where byte is. 
-         * @param variable where save the byte.
-         * @return int the index where the current field ends and start the next
-         *         mqtt field. 
-         */
-        int decodeOneByte(int index, uint8_t* variable);                             
+    /**
+     * @brief Resets the parser state machine to wait for a new packet.
+     * Frees the internal 'remainingPacket' buffer.
+     */
+    void reset();
 
-        /**
-         * @brief Get and concatenate two bytes from remaining packet,
-         * the first byte is in index and the second is in index++;
-         * 
-         * @param index where is the first byte.
-         * @param variable where save the bytes concatenated.
-         * @return int the index where the current field ends and start the next
-         *         mqtt field.
-         */
-        int decodeTwoBytes(int index, uint16_t *variable);
+    /**
+     * @brief Get the Fixed Header byte.
+     * Call this *after* the onPacketReadyCallback has fired.
+     *
+     * @return uint8_t that represent fixed header.
+     */
+    uint8_t getFixedHeader (){
+        return fixedHeader[0];
+    }
+
+    /**
+     * @brief Get the Remaining Packet buffer (variable header + payload).
+     * Call this *after* the onPacketReadyCallback has fired.
+     *
+     * @return uint8_t* pointer to the buffer.
+     */
+    uint8_t* getRemainingPacket(){
+        return remainingPacket;
+    }
+
+    /**
+     * @brief Get the Remaining Packet Length.
+     * Call this *after* the onPacketReadyCallback has fired.
+     *
+     * @return size_t The length of the 'remainingPacket' buffer.
+     */
+    size_t getRemainingPacketLength(){
+        return remainingLengt;
+    }
+
+    /************************* Decode Utils ******************/
+    // These methods are called by the MqttClient *after* the
+    // onPacketReadyCallback has fired, operating on the
+    // 'remainingPacket' buffer.
+
+    /**
+     * @brief Extract a variable mqtt text field (like client-id, topic).
+     *
+     * @param index where is the first byte of text field length.
+     * @param textField String where to copy the text field.
+     * @return int, index after the extracted field.
+     */
+    int decodeTextField(int index, String* textField);
+
+    /**
+     * @brief Get topic from mqtt packet.
+     *
+     * @param index where start the lengt of mqtt topic field.
+     * @param topic MqttTopic where store the char* topic readed.
+     * @return int the index after the topic field.
+     */
+    int decodeTopic(int index,MqttTocpic *topic);
+
+    /**
+     * @brief Extrat payLoad from the 'remainingPacket' buffer.
+     *
+     * @param index where start the payload mqtt field.
+     * @param topic MqttTopic where store payload.
+     * @return int the index after the payload field.
+     */
+    int decodePayLoad(int index, MqttTocpic *topic);
+
+    /**
+     * @brief Extract qos level for a subscribe topic.
+     *
+     * @param index where start the qos mqtt field.
+     * @param topic pointer to MqttTopic where store qos level.
+     * @return int the index after the qos field.
+     */
+    int decodeQosTopic(int index,MqttTocpic *topic);
+
+
+    /**
+     * @brief Get one byte from remaining buffer and put into variable.
+     *
+     * @param index where byte is.
+     * @param variable where save the byte.
+     * @return int the index after the byte.
+     */
+    int decodeOneByte(int index, uint8_t* variable);
+
+    /**
+     * @brief Get and concatenate two bytes from remaining packet.
+     *
+     * @param index where is the first byte.
+     * @param variable where save the bytes concatenated.
+     * @return int the index after the two bytes.
+     */
+    int decodeTwoBytes(int index, uint16_t *variable);
+
+    bool isPacketReady(){
+        return _state == PACKET_READY;
+    }
+
+    /*
+     * @brief Set a new callback function to be called when a full packet is ready.
+     * @param onPacketReadyCallback The new function to call.
+     */
+    void setCallback(std::function<void(void)> onPacketReadyCallback) {
+        _onPacketReadyCallback = onPacketReadyCallback;
+    }
 };
 
 #endif //READERMQTTPACKET_H

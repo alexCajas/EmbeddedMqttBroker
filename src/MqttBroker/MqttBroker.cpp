@@ -1,100 +1,323 @@
 #include "MqttBroker.h"
+
 using namespace mqttBrokerName;
-MqttBroker::~MqttBroker(){
-    
-    // delete listenerTask
-    newClientListenerTask->stopListen();
-    delete newClientListenerTask;
 
-    // delete freeMqttClientTask
-    freeMqttClientTask->stop();
-    delete freeMqttClientTask;
-
-    // delete all MqttClients
-    std::map<int, MqttClient *>::iterator it;
-    for (it = clients.begin(); it != clients.end(); it++)
-    {
-        delete it->second;
-    }  
-
-    // delete trie
-    delete topicTrie;  
-}
-
-MqttBroker::MqttBroker(uint16_t port){
-    this->port = port;
+MqttBroker::MqttBroker(ServerListener* listener) {
     this->maxNumClients = MAXNUMCLIENTS;
-    topicTrie = new Trie();
+    this->listener = listener;
     
-    /************* setup queues ***************************/
-    deleteMqttClientQueue = xQueueCreate( 1, sizeof(int) );
-    if(deleteMqttClientQueue == NULL){
-        log_e("Fail to create queue.");
-        ESP.restart();
+    // Inject dependencies: The listener needs a reference back to the broker
+    // to notify when new clients connect.
+    if (this->listener) {
+        this->listener->setBroker(this);
+    }
+    
+    topicTrie = new Trie();
+
+    // 1. Create Queues
+    // deleteMqttClientQueue stores pointers to MqttTransport objects that need cleanup.
+    deleteMqttClientQueue = xQueueCreate(20, sizeof(MqttTransport*)); 
+    if (!deleteMqttClientQueue) {
+        log_e("Failed to create delete queue"); ESP.restart();
     }
 
-    /************ setup Tasks *****************************/
-    this->newClientListenerTask = new NewClientListenerTask(this,port);
-    this->newClientListenerTask->setCore(0);
-    this->freeMqttClientTask = new FreeMqttClientTask(this,&deleteMqttClientQueue);
-    this->freeMqttClientTask->setCore(1);
+    // brokerEventQueue stores pointers to BrokerEvent structs for the Worker.
+    brokerEventQueue = xQueueCreate(50, sizeof(BrokerEvent*)); 
+    if (!brokerEventQueue) {
+        log_e("Failed to create brokerEventQueue"); ESP.restart();
+    }
+
+    // 2. Create Mutex
+    // Required to protect the 'clients' map from concurrent access by Core 1 (Network) and Core 0 (Worker).
+    clientSetMutex = xSemaphoreCreateMutex();
+    if (!clientSetMutex) {
+        log_e("Failed to create mutex"); ESP.restart();
+    }
+
+    // 3. Instantiate Worker (Core 0)
+    // The worker task handles heavy processing to keep the network loop non-blocking.
+    this->checkMqttClientTask = new CheckMqttClientTask(this);
+    this->checkMqttClientTask->setCore(0);
 }
 
 
-void MqttBroker::addNewMqttClient(WiFiClient &tcpClient, ConnectMqttMessage connectMessage){
-  
-  MqttClient *mqttClient = new MqttClient(tcpClient, &deleteMqttClientQueue, numClient, connectMessage.getKeepAlive(),this);
-  clients.insert(std::make_pair(numClient, mqttClient));
-  mqttClient->startTcpListener();
-  log_i("New client added: %i", mqttClient->getId());
-  log_v("%i clients active.", clients.size());
-  numClient++;
-  
-}
+MqttBroker::~MqttBroker() {
+    stopBroker();
 
-void MqttBroker::deleteMqttClient(int clientId){
+    if (checkMqttClientTask) {
+        delete checkMqttClientTask; 
+    }
     
-    log_i("Deleting client: %i", clientId);
-    MqttClient * client = clients[clientId];
-    clients.erase(clientId);
-    delete client;
+    // The Broker owns the Listener, so we are responsible for deleting it.
+    if (listener) {
+        delete listener;
+    }
     
+    if (topicTrie) {
+        delete topicTrie;
+    }
+    
+    // Clean up all active clients.
+    // Iterating and deleting here will close their transports and free memory.
+    for (auto const& [transport, client] : clients) {
+        delete client; 
+    }
+    clients.clear();
+    
+    // Drain and clean up pending events in the queue to prevent leaks.
+    BrokerEvent* event;
+    while(xQueueReceive(brokerEventQueue, &event, 0) == pdPASS) {
+        // Ideally, we should also delete the inner message objects (pubMsg/subMsg) here.
+        delete event;
+    }
+    vQueueDelete(brokerEventQueue);
+    vQueueDelete(deleteMqttClientQueue);
+
+    vSemaphoreDelete(clientSetMutex);
 }
 
-void MqttBroker::startBroker(){
-    newClientListenerTask->start();
-    freeMqttClientTask->start();
+// --- CONTROL ---
+
+void MqttBroker::startBroker() {
+    // Start the specific network listener (TCP or WebSocket)
+    if (listener) {
+        listener->begin();
+        log_i("MqttBroker Listener Started");
+    }
+
+    // Start the background worker task
+    checkMqttClientTask->start();
 }
 
-void MqttBroker::stopBroker(){
-    newClientListenerTask->stopListen();
+void MqttBroker::stopBroker() {
+    if (listener) {
+        listener->stop();
+    }
+    if (checkMqttClientTask) {
+        checkMqttClientTask->stop();
+    }
 }
 
+// --- CLIENT MANAGEMENT (Incoming Connections) ---
 
-void MqttBroker::publishMessage(PublishMqttMessage * publishMqttMessage){
-  
-  std::vector<int>* clientsSubscribedIds = topicTrie->getSubscribedMqttClients(publishMqttMessage->getTopic().getTopic());
+void MqttBroker::acceptClient(MqttTransport *transport) {
+    
+    // 1. Capacity check
+    if (isBrokerFullOfClients()) {
+        log_w("Broker full. Rejecting client IP: %s", transport->getIP().c_str());
+        transport->close();
+        delete transport; // Must delete the wrapper since we won't store it
+        return;
+    }
+    
+    // 2. Critical Section: Add to the map
+    if (xSemaphoreTake(clientSetMutex, portMAX_DELAY) == pdTRUE) {
+        numClient++; 
+        int newId = numClient;
 
-  log_v("Publishing topic: %s", publishMqttMessage->getTopic().getTopic().c_str());
-  log_d("Publishing to %i client(s).", clientsSubscribedIds->size());
-  
-  for(std::size_t it = 0; it != clientsSubscribedIds->size(); it++){
-    clients[clientsSubscribedIds->at(it)]->publishMessage(publishMqttMessage);
-  }
-
-  delete clientsSubscribedIds; // topicTrie->getSubscirbedMqttClient() don't free std::vector*
-                            // the user is responsible to free de memory allocated
-
-}                  
-
-void MqttBroker::SubscribeClientToTopic(SubscribeMqttMessage * subscribeMqttMessage, MqttClient* client){
-  
-  std::vector<MqttTocpic> topics = subscribeMqttMessage->getTopics();
-  NodeTrie *node;
-  for(int i = 0; i < topics.size(); i++){
-    node = topicTrie->subscribeToTopic(topics[i].getTopic(),client);
-    client->addNode(node);
-    log_i("Client %i subscribed to %s.", client->getId(), topics[i].getTopic().c_str());
-  }
-  
+        // Instantiate MqttClient, injecting the abstract transport.
+        // The MqttClient constructor will configure the transport callbacks.
+        MqttClient *mqttClient = new MqttClient(transport, newId, this, outBoxMaxSize);
+        
+        // Store in the map using the transport pointer as the unique key.
+        clients[transport] = mqttClient;
+        
+        xSemaphoreGive(clientSetMutex);
+        
+        log_i("Client Accepted. ID: %i, IP: %s", newId, transport->getIP().c_str());
+    } else {
+        log_e("Mutex Error. Rejecting.");
+        transport->close();
+        delete transport;
+    }
 }
+
+// --- CLIENT DELETION (Cleanup) ---
+
+void MqttBroker::queueClientForDeletion(MqttTransport* transportKey) {
+    // Push the transport pointer to the queue. The Worker will process this later.
+    xQueueSend(deleteMqttClientQueue, &transportKey, 0);
+}
+
+void MqttBroker::deleteMqttClient(MqttTransport* transportKey) {
+    MqttClient* clientToDelete = nullptr;
+
+    // Critical Section: Remove from map
+    if (xSemaphoreTake(clientSetMutex, portMAX_DELAY) == pdTRUE) {
+        auto it = clients.find(transportKey);
+        
+        if (it != clients.end()) {
+            clientToDelete = it->second;
+            clients.erase(it); // Remove the entry from the map
+            log_i("Client removed from map.");
+        } else {
+            log_w("Client not found in map for deletion.");
+        }
+        xSemaphoreGive(clientSetMutex);
+    }
+
+    // Actual deletion happens OUTSIDE the mutex to prevent deadlocks
+    // (e.g., if the destructor needs to access other locked resources).
+    if (clientToDelete != nullptr) {
+        delete clientToDelete; // MqttClient destructor handles cleanup of Transport and Reader
+        log_v("Client object memory freed.");
+    }
+}
+
+// --- WORKER LOGIC ---
+
+bool MqttBroker::processDeletions() {
+    MqttTransport* transportKey;
+    bool workDone = false;
+    
+    // Process all pending deletion requests
+    while (xQueueReceive(deleteMqttClientQueue, &transportKey, 0) == pdPASS) {
+        deleteMqttClient(transportKey);
+        workDone = true;
+    }
+    return workDone;
+}
+
+void MqttBroker::processKeepAlives() {
+    unsigned long now = millis();
+
+    // Protect map iteration
+    if (xSemaphoreTake(clientSetMutex, 10 / portTICK_PERIOD_MS) == pdTRUE) {
+        for (auto const& [transport, client] : clients) {
+            // Only check KeepAlive for fully connected clients
+            if (client->getState() == STATE_CONNECTED) {
+                client->checkKeepAlive(now);
+
+                // 2. Active Flow Control / Outbox Pumping
+                client->processOutbox();
+            }
+        }
+        xSemaphoreGive(clientSetMutex);
+    }
+}
+
+bool MqttBroker::processBrokerEvents() {
+    BrokerEvent* event;
+    int count = 0;
+    bool workDone = false;
+    const int MAX_BATCH = 10; // Limit processing per loop to yield CPU
+
+    while (count < MAX_BATCH && xQueueReceive(brokerEventQueue, &event, 0) == pdPASS) {
+        if (event->type == EVENT_PUBLISH) {
+            _publishMessageImpl(event->message.pubMsg);
+        } 
+        else if (event->type == EVENT_SUBSCRIBE) {
+            _subscribeClientImpl(event->message.subMsg, event->client);
+        }
+        
+        delete event; // Clean up the event container
+        count++;
+        workDone = true;
+    }
+    return workDone;
+}
+
+// --- INTERNAL LOGIC IMPLEMENTATIONS ---
+
+void MqttBroker::_publishMessageImpl(PublishMqttMessage* msg) {
+    if (msg == nullptr) return;
+
+    String topic = msg->getTopic().getTopic();
+    
+    // 1. Query the Trie to find interested subscribers
+    std::vector<MqttClient*>* subscribers = topicTrie->getSubscribedMqttClients(topic);
+
+    if (subscribers && !subscribers->empty()) {
+        log_v("Worker: Publishing topic %s to %i clients", topic.c_str(), subscribers->size());
+
+        // 2. Iterate clients (Protected Read)
+        if (xSemaphoreTake(clientSetMutex, portMAX_DELAY) == pdTRUE) {
+            
+            // 3. Publish to each subscriber
+            for (MqttClient* client : *subscribers) {
+                if (client && client->getState() == STATE_CONNECTED) {
+                    client->publishMessage(msg);
+                }
+            }
+            xSemaphoreGive(clientSetMutex);
+        }
+        delete subscribers;
+    }
+    
+    // Important: Delete the message object here, as the broker took ownership.
+    delete msg; 
+}
+
+void MqttBroker::_subscribeClientImpl(SubscribeMqttMessage* msg, MqttClient* client) {
+    if (msg == nullptr || client == nullptr) return;
+
+    std::vector<MqttTocpic> topics = msg->getTopics();
+    NodeTrie *node;
+    
+    // Access the Trie safely (serialized by the Worker thread)
+    for(int i = 0; i < topics.size(); i++){
+        node = topicTrie->subscribeToTopic(topics[i].getTopic(), client);
+        
+        if (node) { 
+             client->addNode(node);
+             log_i("Worker: Client %i subscribed to %s", client->getId(), topics[i].getTopic().c_str());
+        }
+    }
+
+
+    // Send SUBACK to the client
+    // if client still connected, send SUBACK
+    if (client->getState() == STATE_CONNECTED) {
+        client->sendSubAck(msg); 
+    }
+
+    delete msg; 
+}
+
+// --- PUBLIC QUEUING METHODS (Producers) ---
+
+void MqttBroker::publishMessage(PublishMqttMessage * msg) {
+    BrokerEvent* event = new BrokerEvent;
+    event->type = BrokerEventType::EVENT_PUBLISH;
+    event->client = nullptr;
+    event->message.pubMsg = msg;
+
+    // Send to queue
+    if (xQueueSend(brokerEventQueue, &event, 0) != pdPASS) {
+        log_w("Broker Queue Full! Dropping publish.");
+        delete event;
+        delete msg; // Prevent memory leak
+    }
+}
+
+void MqttBroker::SubscribeClientToTopic(SubscribeMqttMessage * msg, MqttClient* client) {
+    BrokerEvent* event = new BrokerEvent;
+    event->type = BrokerEventType::EVENT_SUBSCRIBE;
+    event->client = client;
+    event->message.subMsg = msg;
+    
+    if (xQueueSend(brokerEventQueue, &event, 0) != pdPASS) {
+        log_w("Broker Queue Full! Dropping subscribe.");
+        delete event;
+        delete msg;
+    }
+}
+
+void MqttBroker::setOutBoxMaxSize(size_t outBoxMaxSize){
+        // 1. Update default value for future clients
+        this->outBoxMaxSize = outBoxMaxSize;
+
+        // 2. CRITICAL SECTION: Protect access to the 'clients' map
+        if (xSemaphoreTake(clientSetMutex, portMAX_DELAY) == pdTRUE) {
+            
+            for (auto const& [transport, client] : clients) {
+                // Update the limit for existing clients
+                client->setOutboxMaxSize(outBoxMaxSize);
+            }
+            
+            xSemaphoreGive(clientSetMutex);
+            log_i("Outbox size updated to %u for all active clients.", outBoxMaxSize);
+        } else {
+            log_e("Failed to acquire mutex. Outbox size update skipped for active clients.");
+        }
+    }

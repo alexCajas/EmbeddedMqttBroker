@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 MQTT WebSocket Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --danger-color: #dc2626;
+            --success-color: #16a34a;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-color: #1f2937;
+            --border-color: #e5e7eb;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            width: 100%;
+            max-width: 800px;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        h2 {
+            margin-top: 0;
+            color: var(--text-color);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Status Indicator */
+        .status-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .status-dot {
+            height: 12px;
+            width: 12px;
+            background-color: var(--danger-color);
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 10px;
+            margin-right: 5px;
+            transition: background-color 0.3s;
+        }
+
+        .status-dot.connected {
+            background-color: var(--success-color);
+            box-shadow: 0 0 8px var(--success-color);
+        }
+
+        /* Form Layout */
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 10px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 10px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #4b5563;
+        }
+
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            box-sizing: border-box; /* Fixes padding issues */
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        /* Buttons */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            font-size: 1rem;
+        }
+
+        button:hover { opacity: 0.9; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-primary { background-color: var(--primary-color); color: white; }
+        .btn-danger { background-color: var(--danger-color); color: white; }
+        .btn-send { background-color: var(--success-color); color: white; width: 100%; }
+
+        /* Terminal Log */
+        .log-container {
+            margin-top: 20px;
+        }
+        
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .log-box {
+            background-color: #1e1e1e;
+            color: #4ade80;
+            font-family: 'Consolas', 'Monaco', monospace;
+            padding: 15px;
+            height: 300px;
+            overflow-y: auto;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .log-entry { margin-bottom: 4px; border-bottom: 1px solid #333; padding-bottom: 2px;}
+        .log-time { color: #888; margin-right: 10px; user-select: none; }
+        .log-sent { color: #60a5fa; } /* Blue for sent */
+        .log-recv { color: #4ade80; } /* Green for received */
+        .log-err { color: #f87171; } /* Red for error */
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>📡 MQTT WebSocket Tester</h2>
+        
+        <div class="status-container">
+            Status: <span class="status-dot" id="status-dot"></span> 
+            <span id="status-text">Disconnected</span>
+        </div>
+
+        <div class="form-group grid-3">
+            <div>
+                <label for="mqtt-host">Broker IP / Host</label>
+                <input type="text" id="mqtt-host" value="192.168.1.120" placeholder="e.g. 192.168.1.120">
+            </div>
+            <div>
+                <label for="mqtt-port">Port</label>
+                <input type="number" id="mqtt-port" value="8080">
+            </div>
+            <div>
+                <label for="mqtt-path">WS Endpoint</label>
+                <input type="text" id="mqtt-path" value="/mqtt" placeholder="/mqtt">
+            </div>
+        </div>
+
+        <div class="btn-group">
+            <button id="btn-connect" class="btn-primary" onclick="connect()">Connect</button>
+            <button id="btn-disconnect" class="btn-danger" onclick="disconnect()" disabled>Disconnect</button>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 20px 0;">
+
+        <div class="form-group">
+            <label for="mqtt-topic">Topic</label>
+            <input type="text" id="mqtt-topic" value="test/dashboard">
+        </div>
+
+        <div class="form-group grid-2">
+            <div>
+                <input type="text" id="mqtt-message" placeholder="Type your message here...">
+            </div>
+            <div>
+                <button id="btn-send" class="btn-send" onclick="sendMessage()" disabled>Send Message</button>
+            </div>
+        </div>
+
+        <div class="log-container">
+            <div class="log-header">
+                <label>Connection Log</label>
+                <button onclick="clearLog()" style="padding: 2px 8px; font-size: 0.8rem; background: #9ca3af; color: white;">Clear</button>
+            </div>
+            <div id="log" class="log-box"></div>
+        </div>
+    </div>
+
+    <script>
+        let client = null;
+
+        // --- Logger Helper ---
+        function appendLog(msg, type = 'info') {
+            const logDiv = document.getElementById("log");
+            const time = new Date().toLocaleTimeString();
+            
+            let colorClass = '';
+            if(type === 'sent') colorClass = 'log-sent';
+            else if(type === 'recv') colorClass = 'log-recv';
+            else if(type === 'error') colorClass = 'log-err';
+
+            logDiv.innerHTML += `<div class="log-entry ${colorClass}"><span class="log-time">[${time}]</span> ${msg}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight; // Auto-scroll to bottom
+        }
+
+        function clearLog() {
+            document.getElementById("log").innerHTML = "";
+        }
+
+        // --- UI State Management ---
+        function updateUIState(isConnected) {
+            const statusText = document.getElementById("status-text");
+            const statusDot = document.getElementById("status-dot");
+            
+            const btnConnect = document.getElementById("btn-connect");
+            const btnDisconnect = document.getElementById("btn-disconnect");
+            const btnSend = document.getElementById("btn-send");
+            
+            // Inputs
+            const inputs = ['mqtt-host', 'mqtt-port', 'mqtt-path'];
+
+            if (isConnected) {
+                statusText.innerText = "Connected";
+                statusDot.classList.add("connected");
+                
+                btnConnect.disabled = true;
+                btnDisconnect.disabled = false;
+                btnSend.disabled = false;
+                
+                inputs.forEach(id => document.getElementById(id).disabled = true);
+            } else {
+                statusText.innerText = "Disconnected";
+                statusDot.classList.remove("connected");
+                
+                btnConnect.disabled = false;
+                btnDisconnect.disabled = true;
+                btnSend.disabled = true;
+
+                inputs.forEach(id => document.getElementById(id).disabled = false);
+            }
+        }
+
+        // --- MQTT Logic ---
+
+        function connect() {
+            // Get values from UI
+            const host = document.getElementById("mqtt-host").value;
+            const port = Number(document.getElementById("mqtt-port").value);
+            const path = document.getElementById("mqtt-path").value;
+            const topic = document.getElementById("mqtt-topic").value;
+
+            // Simple validation
+            if(!host || !port || !path) {
+                alert("Please fill in Host, Port and Path");
+                return;
+            }
+
+            const clientId = "web-dashboard-" + new Date().getTime();
+            
+            appendLog(`Connecting to ws://${host}:${port}${path}...`);
+
+            // Initialize Paho Client
+            client = new Paho.MQTT.Client(host, port, path, clientId);
+
+            // Set Callbacks
+            client.onConnectionLost = onConnectionLost;
+            client.onMessageArrived = onMessageArrived;
+
+            const options = {
+                onSuccess: () => {
+                    appendLog("Connected successfully!");
+                    updateUIState(true);
+                    
+                    // Subscribe automatically on connect
+                    client.subscribe(topic);
+                    appendLog(`Subscribed to topic: ${topic}`);
+                },
+                onFailure: (message) => {
+                    appendLog("Connection failed: " + message.errorMessage, 'error');
+                    updateUIState(false);
+                },
+                timeout: 5, 
+                keepAliveInterval: 60
+            };
+
+            try {
+                client.connect(options);
+            } catch (e) {
+                appendLog("Error initializing connection: " + e, 'error');
+            }
+        }
+
+        function onConnectionLost(responseObject) {
+            if (responseObject.errorCode !== 0) {
+                appendLog("Connection Lost: " + responseObject.errorMessage, 'error');
+            } else {
+                appendLog("Disconnected.");
+            }
+            updateUIState(false);
+        }
+
+        function onMessageArrived(message) {
+            appendLog(`📥 RECV [${message.destinationName}]: ${message.payloadString}`, 'recv');
+        }
+
+        function sendMessage() {
+            const topic = document.getElementById("mqtt-topic").value;
+            const payload = document.getElementById("mqtt-message").value;
+
+            if (!client || !client.isConnected()) {
+                appendLog("Error: Client not connected", 'error');
+                return;
+            }
+
+            if(!payload) {
+                alert("Please enter a message");
+                return;
+            }
+
+            try {
+                const message = new Paho.MQTT.Message(payload);
+                message.destinationName = topic;
+                client.send(message);
+                appendLog(`📤 SENT [${topic}]: ${payload}`, 'sent');
+                document.getElementById("mqtt-message").value = ""; // Clear input
+            } catch (e) {
+                appendLog("Error sending message: " + e, 'error');
+            }
+        }
+
+        function disconnect() {
+            if (client && client.isConnected()) {
+                appendLog("Disconnecting...");
+                client.disconnect();
+            }
+        }
+    </script>
+</body>
+</html>

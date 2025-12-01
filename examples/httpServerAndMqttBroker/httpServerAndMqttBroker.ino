@@ -2,27 +2,28 @@
  * @file httpServerAndMqttBroker.ino
  * @author Alex Cajas (alexcajas505@gmail.com)
  * @brief 
- * Example of using a http web server and a mqtt broker 
- * at the same time. This example shows a small web where
- * you can see if the broker is full of mqtt clients and how 
- * to configure the maximum number of mqtt clients connections acepted
- * by the broker.
- * @version 1.0.0
+ * Hybrid Example: Running a Synchronous HTTP Server and an Asynchronous MQTT Broker simultaneously.
+ * * In this example, the HTTP server provides a simple status page showing if the Broker is full.
+ * @version 2.0.7
  */
 
 #include <WiFi.h> 
 #include "EmbeddedMqttBroker.h"
+
 using namespace mqttBrokerName;
-const char *ssid = "...";
-const char *password = "***";
-const char *AP_NameChar = "WebServerAndBroker";
 
-/******************* mqtt broker ********************/
+const char *ssid = "SSID";
+const char *password = "PASSWORD";
+
+/******************* MQTT Broker ********************/
 uint16_t mqttPort = 1883;
-MqttBroker broker(mqttPort);
 
-/****************** http server ********************/
+// We declare a pointer because the Factory will allocate it dynamically
+MqttBroker* broker;
+
+/****************** HTTP Server ********************/
 uint16_t httpPort = 80;
+// Standard synchronous WiFiServer (runs in loop())
 WiFiServer server(httpPort);
 WiFiClient httpClient;
 
@@ -31,71 +32,75 @@ void setup(){
   /**
    * @brief To see outputs of broker activity 
    * (message to publish, new client's id etc...), 
-   * set your core debug level higher to NONE (I recommend INFO level).
+   * set your core debug level higher to NONE (I recommend INFO or VERBOSE level).
    * More info: @link https://github.com/alexCajas/EmbeddedMqttBroker @endlink
    */
 
+
   Serial.begin(115200);
-  // Connect to WiFi network
+  
+  // --- Connect to WiFi ---
   Serial.println();
-  Serial.println();
-  Serial.println("http server and mqtt broker");
+  Serial.println("--- Hybrid: HTTP Server + MQTT Broker ---");
   Serial.print("Connecting to ");
   Serial.println(ssid);
 
   WiFi.mode(WIFI_STA);
-  //WiFi.mode(WIFI_AP_STA);
-  //MDNS.begin(AP_NameChar,WiFi.localIP());
-
   WiFi.begin(ssid, password);
+
   while (WiFi.status() != WL_CONNECTED)
   {
-    WiFi.begin(ssid, password);
     delay(500);
     Serial.print(".");
   }
 
-  Serial.println("");
-  Serial.println("WiFi connected");
+  Serial.println("\nWiFi connected");
 
-  // Start http server
+  // --- Start HTTP Server ---
   server.begin();
-  Serial.println("http server started");  
-  // Print the IP address
-  Serial.print("Use this URL to connect: ");
-  Serial.print("http://");
-  Serial.print(WiFi.localIP());
-  Serial.println("");
-
-  // Start the mqtt broker
-  broker.setMaxNumClients(1); // set according to your system.
-  broker.startBroker();
-  Serial.println("broker started");
-
-  // Print the IP address
-  Serial.print("Use this ip: ");
+  Serial.println("HTTP server started");  
+  Serial.print("HTTP URL: http://");
   Serial.println(WiFi.localIP());
-  Serial.print("and this port: ");
-  Serial.println(mqttPort);
-  Serial.println("To connect to mqtt broker");
 
+  // --- Start MQTT Broker (Using Factory) ---
+  
+  // 1. Create the Broker instance using the TCP Factory
+  broker = MqttBrokerFactory::createTcpBroker(mqttPort);
+  
+  broker->setMaxNumClients(1); // Set low for testing "Broker Full" logic
+  
+  // 2. Start (Runs in background)
+  broker->startBroker();
+  
+  Serial.println("Async MQTT Broker started");
+  Serial.print("MQTT Connect: tcp://");
+  Serial.print(WiFi.localIP());
+  Serial.print(":");
+  Serial.println(mqttPort);
 }
 
 void loop(){
+    // The MQTT Broker runs on background tasks/interrupts.
+    // The loop() is free to handle the synchronous HTTP server.
 
-    // Check if a client has connected
+    // Check if a web client has connected
     httpClient = server.available();
+    
     if (!httpClient)
     {
-        vTaskDelay(10/portTICK_PERIOD_MS);
+        // Yield to let the OS switch tasks if needed (important for single core)
+        vTaskDelay(10 / portTICK_PERIOD_MS);
         return;
     }
 
+    // Wait for data (Synchronous blocking wait)
     boolean wait = true;
-    while (!httpClient.available() and wait)
+    int timeout = 0;
+    while (!httpClient.available() && wait)
     {
-        vTaskDelay(300/portTICK_PERIOD_MS);
-        wait = false;
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+        timeout++;
+        if(timeout > 30) wait = false; // Simple timeout ~300ms
     }
 
     if (!httpClient.available())
@@ -103,16 +108,33 @@ void loop(){
         return;
     }
 
+    // Read the first line of the request
     String request = httpClient.readStringUntil('\r');
+    Serial.print("HTTP Request: ");
     Serial.println(request);
     
-    httpClient.print("is the broker full?: ");
-    if (broker.isBrokerFullOfClients()){
-        httpClient.print("True");
+    // Send standard HTTP response header
+    httpClient.println("HTTP/1.1 200 OK");
+    httpClient.println("Content-Type: text/html");
+    httpClient.println("Connection: close");
+    httpClient.println();
+    
+    // --- Interaction between HTTP Logic and MQTT Logic ---
+    httpClient.println("<!DOCTYPE HTML>");
+    httpClient.println("<html><body>");
+    httpClient.print("<h1>ESP32 Status</h1>");
+    
+    httpClient.print("<p><strong>Broker Status:</strong> ");
+    
+    // Access the broker methods via the pointer
+    if (broker->isBrokerFullOfClients()){
+        httpClient.print("<span style='color:red;'>FULL (Max Clients Reached)</span>");
     } else{
-        httpClient.print("False");
+        httpClient.print("<span style='color:green;'>Available</span>");
     }
     
+    httpClient.println("</p></body></html>");
+    
+    // Close connection
+    httpClient.stop();
 }
-
-

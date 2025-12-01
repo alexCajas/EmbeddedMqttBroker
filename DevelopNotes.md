@@ -1,5 +1,21 @@
 # Notes of develop procces
 
+## v2.0.7-qos0:
+
+Implements an asynchronous tcp and webscoket mqtt broker.
+
+### Todo
+
+* review Trie and nodeTrie allocated memory
+* MqttClient::sendMqttPacket doesn't support qos1/qos2
+
+### doing
+  
+
+### done
+
+----
+
 ## v1.0.7-qos0
 
 ### Memory lacks:
@@ -11,12 +27,58 @@
 ### Todo
 
 * review Trie and nodeTrie allocated memory
+* MqttClient::sendMqttPacket doesn't support qos1/qos2
 
 ### doing
-
-
+  
 
 ### done
+
+#### 1/12/2025
+
+* improvements:
+  * factories for MqttBrokers
+  * parametric url for mqtt /mqtt
+  * outbox parametric size
+
+  
+#### 29/11/2025
+
+* Migrate MqttBroker to asyncTCP:
+  * Adapter pattern --> done
+  * issues with test_tow_client_conextion.sh:
+    * There are some packets lost, probably is needed an outBox vector:
+      * try with no logs: there less lost, but it doesn't solve:
+        * Here the explanation: Task + WiFiClient is autoblocking, so it adapts to wireless velocity, but AsyncTCP doesn't wait, so it only push message and continue even if wireless card are full, but is normal in an async connection.
+        * The solution is outbox:
+          * There is no problem with esp32 it send well, the problem was an no tread safe access to _outbox 
+
+* _publishMessageImpl:
+  * This O(N*M) loop is a temporary inefficiency due to mapping IDs vs Pointers Future optimization: Store MqttClient* in the Trie directly.
+
+
+* WebSocket MqttBroker:
+  * try to improve search client in wsListener--> it is no need, map find in O(log n) time.
+
+#### 26/11/2025
+
+
+* There aren't workers for hard task:
+  * worker for check keep alive y delete operations ok
+  * worker for publish and subscribe mqttpacket:
+    * now try to use struct and events, need to pass PublishMqttMessage in queue.
+  * worker for readerMqttPacket.
+
+#### 24/11/2025
+
+* MqttClient doesn't has notifiDeleteClient implementation:
+  * allmost implemented, there is issues with memory --> done it wasn't free AsyncTCP
+* MqttClient doesn't has keepAlive implementation
+
+#### 01/11/2025
+
+* migrating mqtt client to asynctcp version
+* Migrating MqttMessages to use new ReaderMqttPacket
 
 #### 06/10/2025
 

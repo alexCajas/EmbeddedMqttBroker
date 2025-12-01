@@ -88,15 +88,15 @@ void NodeTrie::addSubscribedMqttClient(MqttClient* client){
 }
 
 
-void NodeTrie::findSubscribedMqttClients(std::vector<int>*clientsIds, String topic, int index){
+void NodeTrie::findSubscribedMqttClients(std::vector<MqttClient*>* clients, String topic, int index){
    
     NodeTrie *tmp = this;
     unsigned int i = index;
 
     // when start to explorer a topic level, we need to now
     // if some one subcribed to this level usin "+" or "#" wildcards.
-    tmp->matchWithPlusWildCard(clientsIds,topic,i);
-    tmp->matchWithNumberSignWildCard(clientsIds,topic);
+    tmp->matchWithPlusWildCard(clients,topic,i);
+    tmp->matchWithNumberSignWildCard(clients,topic);
     
     // explore main branch
     while (topic[i] != '$')
@@ -111,7 +111,7 @@ void NodeTrie::findSubscribedMqttClients(std::vector<int>*clientsIds, String top
         // begin of topic level detected.
         if(topic[i] == '/'){
             // explore "+" and/or "#" sub-branchs if there are present in this level.
-            tmp->findSubscribedMqttClients(clientsIds,topic,i); 
+            tmp->findSubscribedMqttClients(clients,topic,i); 
         }
         i++; // next character.
     }    
@@ -121,15 +121,19 @@ void NodeTrie::findSubscribedMqttClients(std::vector<int>*clientsIds, String top
    if ( (i == topic.length() - 1) &&  (tmp->find('$')) ){
        // insert the mqttClients subscribed to this topic into clients map.
        
-       for(std::map<int,MqttClient*>::iterator it = tmp->getSubscribedMqttClients()->begin(); it != tmp->getSubscribedMqttClients()->end(); ++it) {
-            clientsIds->push_back(it->first);
-            }
+        std::map<int,MqttClient*>* subs = tmp->getSubscribedMqttClients();
+       
+        if (subs) {
+            for(auto const& [id, client] : *subs) {
+                clients->push_back(client);
+            }    
+        }
    }
         
 }
 
 
-void NodeTrie::matchWithPlusWildCard(std::vector<int>* clients,String topic, int index){
+void NodeTrie::matchWithPlusWildCard(std::vector<MqttClient*>* clients,String topic, int index){
 
     NodeTrie *plusWildCard = this->find('+');
     if(plusWildCard == NULL){
@@ -159,7 +163,7 @@ void NodeTrie::matchWithPlusWildCard(std::vector<int>* clients,String topic, int
     }
 }
 
-void NodeTrie::matchWithNumberSignWildCard(std::vector<int>* clients,String topic){
+void NodeTrie::matchWithNumberSignWildCard(std::vector<MqttClient*>* clients,String topic){
 
     NodeTrie * numberSingWildCard = this->find('#');
     if(numberSingWildCard == NULL){
