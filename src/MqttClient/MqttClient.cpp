@@ -34,9 +34,10 @@ MqttClient::~MqttClient(){
 }
 
 // --- CONSTRUCTOR ---
-MqttClient::MqttClient(MqttTransport* transport, int clientId, MqttBroker * broker){
+MqttClient::MqttClient(MqttTransport* transport, int clientId, MqttBroker * broker, size_t outboxMaxSize) {
     this->transport = transport;
     this->clientId = clientId;
+    this->outboxMaxSize = outboxMaxSize;
     this->broker = broker;
     this->_state = STATE_PENDING; // Start in Handshake mode
 
@@ -185,7 +186,7 @@ void MqttClient::sendPacketByTcpConnection(String mqttPacket){
         if (!_outbox.empty() || !transportReady) {
             
             // Queue Protection: Cap size to prevent OOM
-            if (_outbox.size() < 100) {
+            if (_outbox.size() < outboxMaxSize) {
                 _outbox.push_back(mqttPacket);
             } else {
                 log_e("Client %i: Outbox full! Dropping packet.", clientId);

@@ -94,6 +94,11 @@ struct BrokerEvent {
  * 
  * By default, this broker can listen 16 open sockets at same time, you can set
  * this number according to your hardware support.
+ * 
+ * Otherwise, there is an internal outbox queue in each MqttClient that
+ * permit to buffer mqtt packets to send when the connection is busy, by 
+ * default this queue can store 100 mqtt packets, you can change this size
+ * according to your hardware support.
  */
 class MqttBroker
 {
@@ -129,6 +134,7 @@ private:
      */
     Trie *topicTrie;
 
+    size_t outBoxMaxSize = 100;
 
     /***************************** Synchronization Primitives ****************/
 
@@ -270,6 +276,18 @@ public:
     void setMaxNumClients(uint16_t numMaxClients){
         this->maxNumClients = numMaxClients;
     }
+
+/**
+     * @brief Sets the maximum size of the Outbox queue for buffering packets.
+     * * This method updates the configuration to prevent Out of Memory (OOM) errors
+     * during high traffic bursts. It applies the change in two ways:
+     * 1. Updates the default value for any **future** client connections.
+     * 2. Iterates through all **currently connected** clients to apply the new limit immediately.
+     * * @note **Thread Safety:** This method acquires `clientSetMutex` to safely iterate 
+     * the shared `clients` map without race conditions with the Network Thread.
+     * * @param outBoxMaxSize The new maximum number of packets allowed in the queue (e.g., 50).
+     */
+    void setOutBoxMaxSize(size_t outBoxMaxSize);
 
     /**
      * @brief check if broker has contains maxNumClients connects.
@@ -643,6 +661,7 @@ private:
      * This ensures data integrity and prevents packet loss during high-traffic bursts.
      */
     std::deque<String> _outbox;
+    size_t outboxMaxSize = 100; // Default max size of the Outbox queue
 
     /**
      * @brief Mutex for thread-safe access to the Outbox queue.
@@ -709,7 +728,7 @@ public:
      * @param clientId The unique ID assigned by the Broker.
      * @param broker Pointer to the managing Broker instance.
      */
-    MqttClient(MqttTransport* transport, int clientId, MqttBroker * broker);
+    MqttClient(MqttTransport* transport, int clientId, MqttBroker * broker, size_t outboxMaxSize);
 
     /**
      * @brief Destroy the Mqtt Client object.
@@ -723,6 +742,15 @@ public:
      * @return int The client ID.
      */
     int getId(){return clientId;}
+
+    /**
+     * @brief Sets the maximum size of the Outbox queue.
+     * * This allows tuning the buffer size for handling backpressure, to prevent OOM
+     * * @param maxSize The maximum number of packets to store in the Outbox.
+     */
+    void setOutboxMaxSize(size_t maxSize){
+        outboxMaxSize = maxSize;
+    }
 
     /**
      * @brief Notifies the Broker that a PUBLISH message has been received.

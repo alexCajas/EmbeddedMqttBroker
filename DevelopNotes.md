@@ -15,9 +15,6 @@
 * MqttClient::sendMqttPacket doesn't support qos1/qos2
 
 ### doing
-
-* improvements:
-  * outbox parametric size
   
 
 ### done
@@ -27,7 +24,8 @@
 * improvements:
   * factories for MqttBrokers
   * parametric url for mqtt /mqtt
-
+  * outbox parametric size
+  
 #### 29/11/2025
 
 * Migrate MqttBroker to asyncTCP:

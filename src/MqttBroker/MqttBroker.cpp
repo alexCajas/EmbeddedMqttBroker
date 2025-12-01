@@ -117,7 +117,7 @@ void MqttBroker::acceptClient(MqttTransport *transport) {
 
         // Instantiate MqttClient, injecting the abstract transport.
         // The MqttClient constructor will configure the transport callbacks.
-        MqttClient *mqttClient = new MqttClient(transport, newId, this);
+        MqttClient *mqttClient = new MqttClient(transport, newId, this, outBoxMaxSize);
         
         // Store in the map using the transport pointer as the unique key.
         clients[transport] = mqttClient;
@@ -302,3 +302,22 @@ void MqttBroker::SubscribeClientToTopic(SubscribeMqttMessage * msg, MqttClient* 
         delete msg;
     }
 }
+
+void MqttBroker::setOutBoxMaxSize(size_t outBoxMaxSize){
+        // 1. Update default value for future clients
+        this->outBoxMaxSize = outBoxMaxSize;
+
+        // 2. CRITICAL SECTION: Protect access to the 'clients' map
+        if (xSemaphoreTake(clientSetMutex, portMAX_DELAY) == pdTRUE) {
+            
+            for (auto const& [transport, client] : clients) {
+                // Update the limit for existing clients
+                client->setOutboxMaxSize(outBoxMaxSize);
+            }
+            
+            xSemaphoreGive(clientSetMutex);
+            log_i("Outbox size updated to %u for all active clients.", outBoxMaxSize);
+        } else {
+            log_e("Failed to acquire mutex. Outbox size update skipped for active clients.");
+        }
+    }
