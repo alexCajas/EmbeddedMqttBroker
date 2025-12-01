@@ -5,7 +5,7 @@
  * Hybrid Example: Running a Synchronous HTTP Server and an Asynchronous MQTT Broker simultaneously.
  * * This sketch demonstrates that the new Async MQTT Broker does not block the main loop,
  * allowing legacy code (like a standard WiFiServer) to coexist perfectly.
- * * The HTTP server provides a simple status page showing if the Broker is full.
+ * * In this example, the HTTP server provides a simple status page showing if the Broker is full.
  * @version 2.0.7
  */
 
