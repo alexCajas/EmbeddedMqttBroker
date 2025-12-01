@@ -1,5 +1,21 @@
 # Notes of develop procces
 
+## v2.0.7-qos0:
+
+Implements an asynchronous tcp and webscoket mqtt broker.
+
+### Todo
+
+* review Trie and nodeTrie allocated memory
+* MqttClient::sendMqttPacket doesn't support qos1/qos2
+
+### doing
+  
+
+### done
+
+----
+
 ## v1.0.7-qos0
 
 ### Memory lacks:
@@ -11,7 +27,6 @@
 ### Todo
 
 * review Trie and nodeTrie allocated memory
-* keep alive is not implement yet for async version
 * MqttClient::sendMqttPacket doesn't support qos1/qos2
 
 ### doing
@@ -25,6 +40,7 @@
   * factories for MqttBrokers
   * parametric url for mqtt /mqtt
   * outbox parametric size
+
   
 #### 29/11/2025
 
