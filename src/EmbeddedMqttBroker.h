@@ -1,6 +1,6 @@
 #ifndef EMBEDDEDMQTTBROKER_H
 #define EMBEDDEDMQTTBROKER_H
 
-#include "MqttBroker/MqttBroker.h"
+#include "MqttBroker/MqttBrokerFactory.h"
 
 #endif //EMBEDDEDMQTTBROKER_H
