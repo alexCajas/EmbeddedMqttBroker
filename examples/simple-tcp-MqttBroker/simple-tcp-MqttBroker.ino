@@ -4,7 +4,7 @@
  * @brief 
  * Simple example of using this library to create a standard TCP MQTT Broker.
  * This example uses the Factory pattern to instantiate a TCP listener.
- * @version 2.0.7
+ * @version 2.0.8
  */
 
 #include <WiFi.h> 

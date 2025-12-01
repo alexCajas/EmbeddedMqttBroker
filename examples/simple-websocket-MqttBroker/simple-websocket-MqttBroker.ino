@@ -5,7 +5,7 @@
  * Example of using this library to create an MQTT Broker over WebSockets.
  * Ideal for connecting web dashboards directly to the ESP32.
  * You can find an dashboard with web mqtt clients in ws-mqtt-dashboard.html example.
- * @version 2.0.7
+ * @version 2.0.8
  */
 
 #include <WiFi.h> 

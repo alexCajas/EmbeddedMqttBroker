@@ -4,7 +4,7 @@
  * @brief 
  * Hybrid Example: Running a Synchronous HTTP Server and an Asynchronous MQTT Broker simultaneously.
  * * In this example, the HTTP server provides a simple status page showing if the Broker is full.
- * @version 2.0.7
+ * @version 2.0.8
  */
 
 #include <WiFi.h> 
