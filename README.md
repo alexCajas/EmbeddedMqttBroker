@@ -3,6 +3,8 @@
 [![Mqtt 3.1.1](https://img.shields.io/badge/Mqtt-%203.1.1-yellow)](https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/errata01/os/mqtt-v3.1.1-errata01-os-complete.html#_Toc442180822)
 ![QoS](https://img.shields.io/badge/QoS-0-red)
 [![Arduino](https://img.shields.io/badge/platform-Arduino-green)](https://www.arduino.cc/)
+![TCP](https://img.shields.io/badge/-TCP-yellow)
+![WebSockets](https://img.shields.io/badge/-WebSockets-yellow)
 ![C++](https://img.shields.io/badge/-C%2B%2B-blue)
 ![FreeRTOS](https://img.shields.io/badge/-FreeRTOS-blue)
 [![Release](https://img.shields.io/github/v/release/alexCajas/EmbeddedMqttBroker)](https://github.com/alexCajas/embeddedMqttBroker/releases/latest)
@@ -11,19 +13,27 @@
 
 # EmbeddedMqttBroker
 
-This is an **Async Mqtt broker** developed for embedded devices, in **c++** programming language, **FreeRTOS**  to use advanced multitasking capabilities and **arduino core**. This broker can be used over TCP or WebSockets protocols. Tested in an **Esp32**. **This project include**: 
-* [WrapperFreeRTOS library](https://github.com/alexCajas/WrapperFreeRTOS) to implement concurrent C++ objects. 
-* [AsyncTCP](https://github.com/ESP32Async/AsyncTCP.git) for Mqtt broker over TCP.
-* [ESPAsyncWebServer](https://github.com/ESP32Async/ESPAsyncWebServer.git) for Mqtt broker over WebSockets.
+# Async Mqtt Broker
 
-**To use this library with esp8266** you have to use esp8266RTOS branch, an synchronous release of this library over tcp, and [esp8266RTOSArduCore](https://github.com/alexCajas/esp8266RTOSArduCore), it is a arduino core based on [esp8266_rtos_sdk](https://github.com/espressif/ESP8266_RTOS_SDK). **This library is not compatible with the official**  [NONOSDK esp8266 arduino core](https://github.com/esp8266/Arduino).
+This project is a high-speed, scalable **Async MQTT Broker** engineered to support both **MQTT over TCP** and **MQTT over WebSockets** for **embedded systems**, specifically the **ESP32 and ESP8266** microcontrollers. Utilizing an **event-driven architecture**, it achieves performance by managing numerous concurrent connections asynchronously and **FreeRTOS** to delegate processing tasks efficiently across CPU cores.
+
+It is developed in **C++** on the **Arduino Core**, leveraging the advanced multitasking capabilities of **FreeRTOS**.
+
+**This project includes:**
+
+* [WrapperFreeRTOS library](https://github.com/alexCajas/WrapperFreeRTOS) to implement concurrent C++ objects.
+* [AsyncTCP by mathieucarbou](https://github.com/ESP32Async/AsyncTCP.git) for the MQTT broker over TCP layer.
+* [ESPAsyncWebServer by mathieucarbou](https://github.com/ESP32Async/ESPAsyncWebServer.git) for the MQTT broker over WebSockets layer.
+
+
+**Important Note for ESP8266 Users:** This library is **not compatible** with the official NONOSDK ESP8266 Arduino Core ([`esp8266/Arduino`](https://github.com/esp8266/Arduino)). To use it with the ESP8266, you need to switch to the [`esp8266RTOS` branch](https://github.com/alexCajas/EmbeddedMqttBroker/tree/esp8266RTOS), which is a synchronous implementation over TCP (that is compatible with esp32 to). Furthermore, this requires the use of the specific [`esp8266RTOSArduCore`](https://github.com/alexCajas/esp8266RTOSArduCore), an Arduino core for esp8266 built upon the [ESP8266 RTOS SDK](https://github.com/espressif/ESP8266_RTOS_SDK).
 
 
 ## Usage examples sketches
 
 * **simple-tcp-MqttBroker.ino**: It show how to create, instantiate and use, a MqttBroker object over TCP protocol.
 
-* **simple-websocket-MqttBroker.ino**: It show how to create, instantiate and use, a MqttBroker object over WebSocket protocol.
+* **simple-websocket-MqttBroker.ino**: It show how to create, instantiate and use, a MqttBroker object over WebSocket protocol. It includes a HTML MQTT-WebSocket client dashboard, for easy testing directly in a web browser.
 
 * **httpServerAndMqttBroker.ino**: It show how to use a web server and mqtt broker in the same sketch.
 
@@ -33,13 +43,13 @@ This is an **Async Mqtt broker** developed for embedded devices, in **c++** prog
 
 * From platformIO using **alexcajas/EmbeddedMqttBroker@^2.0.8**
 
-* Or downloading this repo and [https://github.com/alexCajas/WrapperFreeRTOS] manually.
+* Or downloading this repo and [WrapperFreeRTOS](https://github.com/alexCajas/WrapperFreeRTOS), [AsyncTCP](https://github.com/ESP32Async/AsyncTCP.git), [ESPAsyncWebServer](https://github.com/ESP32Async/ESPAsyncWebServer.git manually.
 
 ## Branchs
 
 * main: Here is the last version of the project.
 * main-QOS0: Functional and tested version that only implements QOS 0.
-* esp8266RTOS: Branch of synchronous version compatible with esp8266 and esp32.
+* esp8266RTOS: Branch of synchronous mqtt broker over tcp, compatible with both esp8266 and esp32.
 
 
 ## Can't see broker activity outputs on Serial monitor?
