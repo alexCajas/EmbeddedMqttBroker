@@ -11,14 +11,19 @@
 
 # EmbeddedMqttBroker
 
-This is a **Mqtt broker** developed for embedded devices, in **c++** programming language, **FreeRTOS**  to use advanced multitasking capabilities and **arduino core**. Tested in an **Esp32** and **esp8266 wemos D1**. **This project include** [https://github.com/alexCajas/WrapperFreeRTOS] to implement concurrent C++ objects.
+This is an **Async Mqtt broker** developed for embedded devices, in **c++** programming language, **FreeRTOS**  to use advanced multitasking capabilities and **arduino core**. This broker can be used over TCP or WebSockets protocols. Tested in an **Esp32**. **This project include**: 
+* [WrapperFreeRTOS library](https://github.com/alexCajas/WrapperFreeRTOS) to implement concurrent C++ objects. 
+* [AsyncTCP](https://github.com/ESP32Async/AsyncTCP.git) for Mqtt broker over TCP.
+* [ESPAsyncWebServer](https://github.com/ESP32Async/ESPAsyncWebServer.git) for Mqtt broker over WebSockets.
 
-**To use this library with esp8266** you have to use [esp8266RTOSArduCore](https://github.com/alexCajas/esp8266RTOSArduCore), it is a arduino core based on [esp8266_rtos_sdk](https://github.com/espressif/ESP8266_RTOS_SDK). **This library is not compatible with the official**  [NONOSDK esp8266 arduino core](https://github.com/esp8266/Arduino).
+**To use this library with esp8266** you have to use esp8266RTOS branch, an synchronous release of this library over tcp, and [esp8266RTOSArduCore](https://github.com/alexCajas/esp8266RTOSArduCore), it is a arduino core based on [esp8266_rtos_sdk](https://github.com/espressif/ESP8266_RTOS_SDK). **This library is not compatible with the official**  [NONOSDK esp8266 arduino core](https://github.com/esp8266/Arduino).
 
 
 ## Usage examples sketches
 
-* **simpleMqttBroker.ino**: It show how to create, instantiate and use, a MqttBroker object.
+* **simple-tcp-MqttBroker.ino**: It show how to create, instantiate and use, a MqttBroker object over TCP protocol.
+
+* **simple-websocket-MqttBroker.ino**: It show how to create, instantiate and use, a MqttBroker object over WebSocket protocol.
 
 * **httpServerAndMqttBroker.ino**: It show how to use a web server and mqtt broker in the same sketch.
 
@@ -26,7 +31,7 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
 
 * You can install this, from arduino library manager, searching **embeddedmqttbroker**.
 
-* From platformIO using **alexcajas/EmbeddedMqttBroker@^1.0.6**
+* From platformIO using **alexcajas/EmbeddedMqttBroker@^2.0.8**
 
 * Or downloading this repo and [https://github.com/alexCajas/WrapperFreeRTOS] manually.
 
@@ -34,6 +39,7 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
 
 * main: Here is the last version of the project.
 * main-QOS0: Functional and tested version that only implements QOS 0.
+* esp8266RTOS: Branch of synchronous version compatible with esp8266 and esp32.
 
 
 ## Can't see broker activity outputs on Serial monitor?
@@ -69,7 +75,7 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
   board = esp32dev
   lib_deps = 
           alexcajas/WrapperFreeRTOS @ ^1.0.1
-          alexcajas/EmbeddedMqttBroker @ 1.0.4-qos0
+          alexcajas/EmbeddedMqttBroker @ 2.0.8-qos0
   build_flags = -DCORE_DEBUG_LEVEL=ARDUHAL_LOG_LEVEL_INFO
   ~~~
 
@@ -117,9 +123,23 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
 
 * So the alternative way to increase the time efficiency using FreeRTOS, is to use a concurrent tasks for each client, it is, each task will listen its own tcp socket in parallel to all other tasks.
 
-* With this method the broker can listen to all connected mqtt clients, at the same time. The time efficiency here, is of order O(1), using the above example, broker processes all messages that arrive at time 1. The main problem of this method is the memory consumed by each task, but is the most time efficient method.  
+* With this method the broker can listen to all connected mqtt clients, at the same time. The time efficiency here, is of order O(1), using the above example, broker processes all messages that arrive at time 1. The main problem of this method is the memory consumed by each task, and that you need real parallel programing to get this time efficiency, it means, you need one cpu for each mqtt client. Esp32 has only two cpu, so you really get O(1) to two mqtt clients, for the other, you are using concurrency programming, given a little time of cpu to process other task including others mqtt clients, so you are iterating and changing cpu context frequently, it's very a heavy process for all cpu.
 
-* This problem, time vs memory consumed, is a constant in programming developments, sometimes you need to save as much memory as possible, but sacrificing cpu time, other times, you need to be very fast, sacrificing memory, but usually, you need to reach to a balance between cpu time efficiency and memory consumed.
+The most robust approach for handling numerous simultaneous clients is **event-driven programming**.
+
+In an event-driven architecture (EDA), the system (in this case, the ESP32 acting as a broker) does not actively "poll" (check repeatedly) each client for messages. Instead, it operates on a non-blocking input/output (I/O) model, waiting efficiently for network events (like incoming data or connection requests) on its open sockets.
+
+This model offers superior **efficiency** and **scalability**:
+
+*   **No CPU Waste:** The microcontroller is not tied up in constant polling loops, saving valuable CPU cycles and power consumption. The system enters an idle state until an event explicitly occurs.
+*   **Non-Blocking Operations:** A single thread can manage hundreds or thousands of concurrent connections because it never "blocks" waiting for a specific client's slow response. This prevents one slow client from impacting all others.
+
+The ESP32 utilizes **FreeRTOS** (a real-time operating system), which enhances this approach:
+
+*   The main *event loop* task, responsible for managing the network interface, runs with high priority.
+*   When a complex message requires parsing or distribution (the "heavy lifting"), the system delegates this work to a separate **"worker task"**. These tasks run concurrently—potentially on the ESP32's second CPU core—ensuring the broker remains responsive to real-time events without delays.
+
+This event-driven, asynchronous model is the industry standard for high-performance network applications. It is the fundamental architecture chosen by robust servers designed to listen for thousands of concurrent TCP messages, such as **Nginx**, **Mosquitto** (the popular MQTT broker), and **Apache** web servers.
 
 ### 1.2 How to publish a mqtt packet to all interested connected clients? <a name="id3"></a>
 
@@ -156,7 +176,7 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
 * Note that here is still an iteration through all objects, but if this object is an event listener to, this object can be notifiyed that an event has ocurred at the same time that this object is notifiying his events to his listeners.
 
 * If the mqtt broker is implemented like a vector of MqttClients objects (where each object represents a mqtt client with his tcp connection) connected to this broker, and:
-  * it is delegated to MqttClient object the responasibility of listen his tcp socket
+  * it is implemented like asyncrhonous event driven listener.
 
   * and if it is implement each MqttClient object like an generates event object and event object listener 
 
@@ -231,9 +251,9 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
   * GRASP Patterns.
   * Solutions that reach to a balance between consumed memory and cpu time, because it covers the needs of most user of a Mqtt broker, for that I use:
   
-    * One task for each tcp socket.
+    * Event driven architecture.
     * Topics prefix Tree.
-    * WiFi Arduino libraries, and FreeRtos utils, because they are compatibles with many microcontrollers, and are the most used by the community.
+    * AsyncTCP and ESPAsyncWebServer Arduino libraries, and FreeRtos utils, because they are compatibles with many microcontrollers, and are the most used by the community.
 
 ## 3. Max number of open tcp sockets at the same time on esp32 <a name="id6"></a>
 
@@ -288,12 +308,10 @@ This is a **Mqtt broker** developed for embedded devices, in **c++** programming
   * You can store 2.828KBytes in topics
   * One character is 1 byte, so You can use 2.828K characters
   
-* **max payload length**: 50KBytes.
+* **Communication protocols support**:
+  * TCP
+  * WebSockets
   
-* on average each MqttClient object size 20KBytes.
-
-* It can re-sent **1000 topics** in **0.723 seconds**, **10000 topics** in **7.40 seconds**.
-
 ## 6. Features to implement in future versions of this project <a name="id8"></a>
 
 * QOS 1.
