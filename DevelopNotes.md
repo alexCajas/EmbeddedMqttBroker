@@ -16,16 +16,17 @@
 
 ### doing
 
-* imprivementes:
+* improvements:
   * outbox parametric size
-  * parametric url for mqtt /mqtt
+  
 
 ### done
 
 #### 1/12/2025
 
-* imprivementes:
+* improvements:
   * factories for MqttBrokers
+  * parametric url for mqtt /mqtt
 
 #### 29/11/2025
 

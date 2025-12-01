@@ -35,9 +35,9 @@ public:
      * @note **Ownership:** The caller is responsible for managing the lifetime 
      * of the returned pointer.
      */
-    static MqttBroker* createWsBroker(uint16_t port = 8080) {
+    static MqttBroker* createWsBroker(uint16_t port = 8080, const char* wsEndpoint = "/mqtt") {
         // Create the concrete strategy for WebSockets
-        ServerListener* listener = new WsServerListener(port);
+        ServerListener* listener = new WsServerListener(port, wsEndpoint);
         
         // Inject dependency and return the configured Context (Broker)
         return new MqttBroker(listener);

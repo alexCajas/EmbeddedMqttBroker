@@ -412,6 +412,7 @@ private:
      * @brief The port to listen on.
      */
     uint16_t port;
+    const char* wsEndpoint;
 
     /**
      * @brief Pointer to the underlying Async Web Server.
@@ -434,7 +435,7 @@ public:
      * @brief Construct a new Ws Server Listener.
      * @param port The port to listen on (e.g., 8080).
      */
-    WsServerListener(uint16_t port);
+    WsServerListener(uint16_t port, const char* wsEndpoint);
 
     /**
      * @brief Destroy the Ws Server Listener.

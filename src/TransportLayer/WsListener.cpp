@@ -2,7 +2,7 @@
 
 using namespace mqttBrokerName;
 
-WsServerListener::WsServerListener(uint16_t port) : port(port), webServer(nullptr), ws(nullptr) {
+WsServerListener::WsServerListener(uint16_t port, const char* wsEndpoint) : port(port), wsEndpoint(wsEndpoint), webServer(nullptr), ws(nullptr) {
 }
 
 WsServerListener::~WsServerListener() {
@@ -19,7 +19,7 @@ WsServerListener::~WsServerListener() {
 
 void WsServerListener::begin() {
     webServer = new AsyncWebServer(port);
-    ws = new AsyncWebSocket("/mqtt"); // Standard path for MQTT over WebSockets
+    ws = new AsyncWebSocket(wsEndpoint); // Standard path for MQTT over WebSockets
 
     // Bind the Global WebSocket Event Callback using a lambda
     ws->onEvent([this](AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
