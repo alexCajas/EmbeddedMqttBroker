@@ -41,7 +41,7 @@ It is developed in **C++** on the **Arduino Core**, leveraging the advanced mult
 
 * From platformIO using **alexcajas/EmbeddedMqttBroker@^2.0.8**
 
-* Or downloading this repo and [WrapperFreeRTOS](https://github.com/alexCajas/WrapperFreeRTOS), [AsyncTCP](https://github.com/ESP32Async/AsyncTCP.git), [ESPAsyncWebServer](https://github.com/ESP32Async/ESPAsyncWebServer.git manually.
+* Or downloading this repo and [WrapperFreeRTOS](https://github.com/alexCajas/WrapperFreeRTOS), [AsyncTCP](https://github.com/ESP32Async/AsyncTCP.git), [ESPAsyncWebServer](https://github.com/ESP32Async/ESPAsyncWebServer.git) manually.
 
 ## Branchs
 
