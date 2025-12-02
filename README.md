@@ -39,7 +39,7 @@ It is developed in **C++** on the **Arduino Core**, leveraging the advanced mult
 
 * You can install this, from arduino library manager, searching **embeddedmqttbroker**.
 
-* From platformIO using **alexcajas/EmbeddedMqttBroker@^2.0.8**
+* From platformIO using **alexcajas/EmbeddedMqttBroker@^2.0.9**
 
 * Or downloading this repo and [WrapperFreeRTOS](https://github.com/alexCajas/WrapperFreeRTOS), [AsyncTCP](https://github.com/ESP32Async/AsyncTCP.git), [ESPAsyncWebServer](https://github.com/ESP32Async/ESPAsyncWebServer.git) manually.
 
