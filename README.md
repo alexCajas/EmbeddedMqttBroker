@@ -13,7 +13,7 @@
 
 # EmbeddedMqttBroker
 
-This project is a high-speed, scalable **Async MQTT Broker** engineered to support both **MQTT over TCP** and **MQTT over WebSockets** for **embedded systems**, specifically the **ESP32 and ESP8266** microcontrollers. Utilizing an **event-driven architecture**, it achieves performance by managing numerous concurrent connections asynchronously and **FreeRTOS** to delegate processing tasks efficiently across CPU cores.
+This project is a high-speed, scalable **Async MQTT Broker** over both **TCP** and **WebSockets** for **embedded systems**, specifically the **ESP32 and ESP8266** microcontrollers. Utilizing an **event-driven architecture**, it achieves performance by managing numerous concurrent connections asynchronously and **FreeRTOS** to delegate processing tasks efficiently across CPU cores.
 
 It is developed in **C++** on the **Arduino Core**, leveraging the advanced multitasking capabilities of **FreeRTOS**.
 
