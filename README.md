@@ -79,14 +79,15 @@ It is developed in **C++** on the **Arduino Core**, leveraging the advanced mult
   ~~~yaml
   [env:esp32dev]
   platform = espressif32
-  framework = arduino
   board = esp32dev
+  framework = arduino
+
 
   lib_deps = 
-      https://github.com/alexCajas/WrapperFreeRTOS.git
+      alexcajas/EmbeddedMqttBroker @ ^2.0.0
+      alexcajas/WrapperFreeRTOS @ ^1.0.2
       https://github.com/ESP32Async/AsyncTCP.git
       https://github.com/ESP32Async/ESPAsyncWebServer.git
-      https://github.com/alexCajas/EmbeddedMqttBroker
 
   build_flags = 
       -DCORE_DEBUG_LEVEL=0
