@@ -1,15 +1,15 @@
 /**
- * @file simpleWebSocketBroker.ino
+ * @file simple-websocket-MqttBroker.ino
  * @author Alex Cajas (alexcajas505@gmail.com)
  * @brief 
  * Example of using this library to create an MQTT Broker over WebSockets.
  * Ideal for connecting web dashboards directly to the ESP32.
- * You can find an dashboard with web mqtt clients in ws-mqtt-dashboard.html example.
- * @version 2.0.8
+ * You can find a dashboard with web mqtt clients in mqtt-websocket-tester.html example.
+ * @version 2.0.11
  */
 
 #include <WiFi.h> 
-#include "MqttBroker/MqttBrokerFactory.h"
+#include "EmbeddedMqttBroker.h"
 
 using namespace mqttBrokerName;
 
