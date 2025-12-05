@@ -1,0 +1,35 @@
+{
+  "name": "EmbeddedMqttBroker",
+  "version": "2.0.12-qos0",
+  "description": "Mqtt Broker over both TCP and Websockets for embedded systems, tested on an Esp32 and esp8266.",
+  "keywords": "mqtt, broker, embedded, esp32, esp8266, freertos",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alexCajas/EmbeddedMqttBroker.git"
+  },
+  "authors": [
+    {
+      "name": "Alex Cajas",
+      "email": "alexcajas505@gmail.com",
+      "maintainer": true
+    }
+  ],
+  "license": "MIT",
+  "frameworks": "arduino",
+  "platforms": "espressif32, espressif8266",
+  "dependencies": [
+    {
+      "name": "WrapperFreeRTOS",
+      "owner": "alexcajas",
+      "version": "^1.0.0"
+    },
+    {
+      "name": "AsyncTCP",
+      "owner": "ESP32Async"
+    },
+    {
+      "name": "ESPAsyncWebServer",
+      "owner": "ESP32Async"
+    }
+  ]
+}

@@ -39,7 +39,7 @@ It is developed in **C++** on the **Arduino Core**, leveraging the advanced mult
 
 * You can install this, from arduino library manager, searching **embeddedmqttbroker**.
 
-* From platformIO using **alexcajas/EmbeddedMqttBroker@^2.0.11**
+* From platformIO using **alexcajas/EmbeddedMqttBroker@^2.0.12**
 
 * Or downloading this repo and [WrapperFreeRTOS](https://github.com/alexCajas/WrapperFreeRTOS), [AsyncTCP](https://github.com/ESP32Async/AsyncTCP.git), [ESPAsyncWebServer](https://github.com/ESP32Async/ESPAsyncWebServer.git) manually.
 
@@ -82,15 +82,14 @@ It is developed in **C++** on the **Arduino Core**, leveraging the advanced mult
   board = esp32dev
   framework = arduino
 
-
   lib_deps = 
-      alexcajas/EmbeddedMqttBroker @ ^2.0.0
-      alexcajas/WrapperFreeRTOS @ ^1.0.2
-      https://github.com/ESP32Async/AsyncTCP.git
-      https://github.com/ESP32Async/ESPAsyncWebServer.git
+      alexcajas/EmbeddedMqttBroker @ ^2.0.12
 
-  build_flags = 
-      -DCORE_DEBUG_LEVEL=0
+  build_flags =
+      -DCORE_DEBUG_LEVEL=ARDUHAL_LOG_LEVEL_NONE
+
+  monitor_speed = 115200
+  monitor_filters = esp32_exception_decoder, time, colorize
 
   ~~~
 
