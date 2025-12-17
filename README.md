@@ -36,7 +36,7 @@ Leverages **FreeRTOS** to distribute workloads across CPU cores, ensuring **scal
 
 * **httpServerAndMqttBroker.ino**: It show how to use a web server and mqtt broker in the same sketch.
 
-## Simple examble
+## Simple example
 
 ~~~c++
 #include <WiFi.h> 
