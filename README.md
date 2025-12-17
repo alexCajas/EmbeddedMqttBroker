@@ -13,9 +13,10 @@
 
 # EmbeddedMqttBroker
 
-This project is a high-speed, scalable **Async MQTT Broker** over both **TCP** and **WebSockets** for **embedded systems**, specifically the **ESP32 and ESP8266** microcontrollers. Utilizing an **event-driven architecture**, it achieves performance by managing numerous concurrent connections asynchronously and **FreeRTOS** to delegate processing tasks efficiently across CPU cores.
+**Plug-and-play, high-performance and scalable asynchronous MQTT broker** over **TCP** and **WebSockets**, designed for **embedded systems** specifically for **ESP32** and **ESP8266** microcontrollers. Requires **minimal configuration** and enables **rapid integration** out of the box. Built on a **modern event-driven, non-blocking architecture** to efficiently handle concurrent connections.  
 
-It is developed in **C++** on the **Arduino Core**, leveraging the advanced multitasking capabilities of **FreeRTOS**.
+Leverages **FreeRTOS** to distribute workloads across CPU cores, ensuring **scalability**, **low latency**, and **resource efficiency** in constrained environments.
+
 
 **This project includes:**
 
@@ -34,6 +35,49 @@ It is developed in **C++** on the **Arduino Core**, leveraging the advanced mult
 * **simple-websocket-MqttBroker.ino**: It show how to create, instantiate and use, a MqttBroker object over WebSocket protocol. It includes a HTML MQTT-WebSocket client dashboard, for easy testing directly in a web browser.
 
 * **httpServerAndMqttBroker.ino**: It show how to use a web server and mqtt broker in the same sketch.
+
+## Simple examble
+
+~~~c++
+#include <WiFi.h> 
+#include "EmbeddedMqttBroker.h" 
+
+using namespace mqttBrokerName;
+
+const char *ssid = "YOUR_SSID";
+const char *password = "YOUR_PASSWORD";
+
+uint16_t mqttPort = 1883;
+
+MqttBroker* broker;
+
+void setup(){
+  
+  Serial.begin(115200);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+  }
+
+  // Create the Broker using the Factory Method for TCP
+  broker = MqttBrokerFactory::createTcpBroker(mqttPort);
+
+  // Optional: Configure buffer size for high-traffic bursts
+  // broker->setOutBoxMaxSize(200); // Default is 100
+
+  // Start the broker (Listeners and Workers)
+  broker->startBroker();
+}
+
+void loop(){
+  // The broker runs concurrently in the background.
+  // No need to call any loop method here.
+  vTaskDelete(NULL); // Optional: Delete the Arduino loop task to save RAM
+}
+~~~
 
 ## Install
 
