@@ -5,8 +5,8 @@
 [![Arduino](https://img.shields.io/badge/platform-Arduino-green)](https://www.arduino.cc/)
 ![TCP](https://img.shields.io/badge/-TCP-yellow)
 ![mTLS](https://img.shields.io/badge/-mTLS-yellow)
-![WebSockets](https://img.shields.io/badge/-WebSockets-yellow)
-![SecureWebSockets](https://img.shields.io/badge/-SecureWebSockets-yellow)
+![WebSockets](https://img.shields.io/badge/-WebSockets-orange)
+![SecureWebSockets](https://img.shields.io/badge/-SecureWebSockets-orange)
 ![C++](https://img.shields.io/badge/-C%2B%2B-blue)
 ![FreeRTOS](https://img.shields.io/badge/-FreeRTOS-blue)
 [![Release](https://img.shields.io/github/v/release/alexCajas/EmbeddedMqttBroker)](https://github.com/alexCajas/embeddedMqttBroker/releases/latest)
@@ -16,7 +16,7 @@
 # EmbeddedMqttBroker
 
 
-**Asynchronous MQTT broker and synchronous MQTTS broker for ESP32 and ESP8266**(esp8266ArduCore), designed for **embedded IoT systems** requiring a **lightweight, high-performance, and scalable MQTT server**. This plug-and-play MQTT broker supports **MQTT over TCP, WebSockets, mTLS, and Secure WebSockets (WSS)**, enabling both **non-blocking async communication and secure certificate-based connections**. Built on a modern **event-driven architecture with FreeRTOS**, it efficiently handles multiple concurrent clients, delivering low latency, high throughput, and optimized resource usage in constrained environments distributing workloads across CPU cores.
+**Asynchronous MQTT broker and synchronous MQTTS broker for ESP32 and ESP8266** (esp8266ArduCore), designed for **embedded IoT systems** requiring a **lightweight, high-performance, and scalable MQTT server**. This plug-and-play MQTT broker supports **MQTT over TCP, WebSockets, mTLS, and Secure WebSockets (WSS)**, enabling both **non-blocking async communication and secure certificate-based connections**. Built on a modern **event-driven architecture with FreeRTOS**, it efficiently handles multiple concurrent clients, delivering low latency, high throughput, and optimized resource usage in constrained environments distributing workloads across CPU cores.
 
 The broker uses an **async, non-blocking core for TCP and WebSocket connections**, while **secure modes (mTLS and WSS)** are implemented as **synchronous** due to the constraints and overhead of **TLS-based security**. This design balances performance and security for embedded use cases.
 
