@@ -24,12 +24,22 @@
       "version": "^1.0.0"
     },
     {
+      "owner": "ESP32Async",
       "name": "AsyncTCP",
-      "owner": "ESP32Async"
+      "version": "^3.4.9",
+      "platforms": [
+        "espressif32",
+        "libretiny"
+      ]
     },
     {
+      "owner": "esp32async",
       "name": "ESPAsyncWebServer",
-      "owner": "ESP32Async"
+      "version": "^3.9.2",
+      "platforms": [
+        "espressif32",
+        "libretiny"
+      ]
     }
   ]
 }
