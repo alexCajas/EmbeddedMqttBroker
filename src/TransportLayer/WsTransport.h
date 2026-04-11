@@ -4,6 +4,8 @@
 #include "MqttTransport.h"
 #include <ESPAsyncWebServer.h>
 
+namespace mqttBrokerName {
+
 /**
  * @brief Concrete implementation of MqttTransport for WebSocket connections.
  * * This class adapts the `AsyncWebSocketClient` from the `ESPAsyncWebServer` library 
@@ -97,5 +99,7 @@ public:
         }
     }
 };
+
+} // namespace mqttBrokerName
 
 #endif // WS_TRANSPORT_H

@@ -1,4 +1,6 @@
 #include "MqttBroker/MqttBroker.h"
+#include <ESPAsyncWebServer.h>
+#include "WsTransport.h"
 
 using namespace mqttBrokerName;
 
@@ -23,7 +25,7 @@ void WsServerListener::begin() {
 
     // Bind the Global WebSocket Event Callback using a lambda
     ws->onEvent([this](AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
-        this->onWsEvent(server, client, type, arg, data, len);
+        this->onWsEvent(server, client, static_cast<int>(type), arg, data, len);
     });
 
     webServer->addHandler(ws);
@@ -40,10 +42,12 @@ void WsServerListener::stop() {
     activeTransports.clear();
 }
 
-void WsServerListener::onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
+void WsServerListener::onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, int type, void * arg, uint8_t *data, size_t len) {
     
+    AwsEventType awsType = static_cast<AwsEventType>(type);
+
     // 1. NEW CONNECTION
-    if (type == WS_EVT_CONNECT) {
+    if (awsType == WS_EVT_CONNECT) {
         // Create the Transport Adapter
         WsTransport* transport = new WsTransport(client);
         
@@ -61,7 +65,7 @@ void WsServerListener::onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient *
     } 
     
     // 2. DISCONNECTION
-    else if (type == WS_EVT_DISCONNECT) {
+    else if (awsType == WS_EVT_DISCONNECT) {
         // Find the associated transport
         auto it = activeTransports.find(client->id());
         if (it != activeTransports.end()) {
@@ -77,7 +81,7 @@ void WsServerListener::onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient *
     } 
     
     // 3. INCOMING DATA
-    else if (type == WS_EVT_DATA) {
+    else if (awsType == WS_EVT_DATA) {
         AwsFrameInfo * info = (AwsFrameInfo*)arg;
         
         // MQTT always uses binary frames. We process only if it's a final frame and binary opcode.

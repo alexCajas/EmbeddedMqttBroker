@@ -32,7 +32,7 @@ bld/
 [Ll]og/
 [Ll]ogs/
 build/
-example
+private-example/
 src/wirelesConfiguration.h
 test
 exit.txt

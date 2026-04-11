@@ -1,5 +1,36 @@
 # Notes of develop procces
 
+## v2.1.12-qos0:
+
+Implements MQTTS over tcp/mtls and secure websockets.
+
+### Todo
+
+* review Trie and nodeTrie allocated memory
+* MqttClient::sendMqttPacket doesn't support qos1/qos2
+
+### doing
+
+### done
+
+#### 09/04/2026
+
+* revision:
+  * MqttBroker:
+    * it is correct definition of secureTask and transport in .h? --> done
+  * MqttFacotry:
+    * comment memory restrictions and add documentation like recomendation --> done
+  * SecurteTcpListener:
+    * separate declaration of task in concurrentTasks? --> done
+  * Idem para securetcptransport  --> done
+  
+
+* test no secure tcp and ws broker:
+  * ws --> ok
+  * tcp --> ok 
+
+----
+
 ## v2.0.7-qos0:
 
 Implements an asynchronous tcp and webscoket mqtt broker.
@@ -10,9 +41,10 @@ Implements an asynchronous tcp and webscoket mqtt broker.
 * MqttClient::sendMqttPacket doesn't support qos1/qos2
 
 ### doing
-  
+
 
 ### done
+
 
 ----
 

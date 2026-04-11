@@ -20,6 +20,9 @@ void CheckMqttClientTask::run (void * data){
   // Define the interval for maintenance checks (100ms).
   // This prevents checking timeouts in every single CPU cycle.
   const TickType_t KEEP_ALIVE_INTERVAL = 100 / portTICK_PERIOD_MS; 
+  
+  // Variables para el control dinámico de memoria (Fase 4)
+  bool memoryRestrictedMode = false;
 
   while(true){
     bool workDone = false; // Flag to determine the CPU yielding strategy
@@ -37,10 +40,27 @@ void CheckMqttClientTask::run (void * data){
         workDone = true;
     }
 
-    // 3. LOW PRIORITY: Periodic Maintenance (Keep Alive)
+    // 3. LOW PRIORITY: Periodic Maintenance (Keep Alive) & Memory Optimization
     // Runs only if the time interval has passed.
     if ((xTaskGetTickCount() - lastKeepAliveCheck) > KEEP_ALIVE_INTERVAL) {
         broker->processKeepAlives();
+        
+        // 4: Dynamic Memory Optimization ---
+        uint32_t freeHeap = ESP.getFreeHeap();
+        
+        // If free memory drops below 40KB, enter panic/restricted mode
+        if (freeHeap < 40000 && !memoryRestrictedMode) {
+            log_w("Critical memory (%u bytes free). Reducing Outbox to 10 messages.", freeHeap);
+            broker->setOutBoxMaxSize(10);
+            memoryRestrictedMode = true;
+        } 
+        // If memory recovers above 80KB, restore normal size
+        else if (freeHeap > 80000 && memoryRestrictedMode) {
+            log_i("Memory recovered (%u bytes free). Restoring Outbox to 100 messages.", freeHeap);
+            broker->setOutBoxMaxSize(100);
+            memoryRestrictedMode = false;
+        }
+
         lastKeepAliveCheck = xTaskGetTickCount();
     }
 

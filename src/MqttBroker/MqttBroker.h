@@ -1,8 +1,11 @@
 #ifndef MQTTBROKER_H
 #define MQTTBROKER_H
 
+#include <Arduino.h>
 #include <WiFi.h> 
 #include <map>
+#include <vector>
+#include <deque>
 #include <AsyncTCP.h>
 #include "WrapperFreeRTOS.h"
 #include "MqttMessages/FactoryMqttMessages.h"
@@ -11,9 +14,27 @@
 #include "MqttMessages/PublishMqttMessage.h"
 #include "TransportLayer/MqttTransport.h"
 #include "TransportLayer/TcpTransport.h"
-#include "TransportLayer/WsTransport.h"
+
+// Cabeceras seguras (no causan conflicto)
+#include <esp_err.h>
+#include "mbedtls/net_sockets.h"
+#include "mbedtls/ssl.h"
+#include "mbedtls/entropy.h"
+#include "mbedtls/ctr_drbg.h"
+#include "mbedtls/x509_crt.h"
+#include "mbedtls/error.h"
+
+// External Forward declarations (This class are in the global namespace)
+class AsyncWebServer;
+class AsyncWebSocket;
+class AsyncWebSocketClient;
+struct httpd_req;
 
 namespace mqttBrokerName{
+
+// Forward declarations INTERNAL
+class WsTransport;
+class SecureWsTransport;
 
 // Depends of your architecture, max num clients is exactly the 
 // max num open sockets that your divece can support.
@@ -37,6 +58,7 @@ class Action;
 class ServerListener;
 class TcpServerListener;
 class WsServerListener;
+class SecureTcpServerListener;
 
 /**
  * @brief Defines the types of asynchronous events handled by the CheckMqttClientTask Task.
@@ -481,12 +503,143 @@ private:
      * and forwards them to the correct `WsTransport` based on the client ID.
      * * @param server The WebSocket handler instance.
      * @param client The specific client that triggered the event.
-     * @param type The type of event (CONNECT, DISCONNECT, DATA).
+     * @param type The type of event (CONNECT, DISCONNECT, DATA). Casted to int to avoid header conflicts.
      * @param arg Event specific argument (e.g., frame info).
      * @param data Pointer to the data buffer.
      * @param len Length of the data.
      */
-    void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len);
+    void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, int type, void * arg, uint8_t *data, size_t len);
+};
+
+/**
+ * @brief FreeRTOS task that listens for incoming secure TCP (MQTTS) connections.
+ * Uses mbedTLS to accept connections and passes them to the listener.
+ */
+class SecureListenerTask : public Task {
+private:
+    SecureTcpServerListener* listener;
+    uint16_t port;
+    const char* server_cert;
+    const char* server_key;
+
+    // mbedTLS contexts for the server
+    mbedtls_net_context listen_fd;
+    mbedtls_entropy_context entropy;
+    mbedtls_ctr_drbg_context conf;
+    mbedtls_ssl_config ssl_conf;
+    mbedtls_x509_crt srvcert;
+    mbedtls_pk_context pkey;
+
+    bool isRunning;
+
+public:
+    /**
+     * @brief Constructor for the secure listener task.
+     * @param listener Pointer to the parent listener to notify about new connections.
+     * @param port Port to listen on (e.g., 8883).
+     * @param cert Server certificate in PEM format.
+     * @param key Server private key in PEM format.
+     */
+    SecureListenerTask(SecureTcpServerListener* listener, uint16_t port, const char* cert, const char* key);
+    
+    ~SecureListenerTask();
+
+    /**
+     * @brief Main loop of the task. Configures mbedTLS and waits for connections.
+     */
+    void run(void* data) override;
+
+    /**
+     * @brief Stops the task and frees the listening socket.
+     */
+    void stopTask();
+};
+
+/**
+ * @brief Server listener for MQTTS (TLS) connections.
+ * Manages the lifecycle of the SecureListenerTask and accepts new secure clients.
+ */
+class SecureTcpServerListener : public ServerListener {
+private:
+    uint16_t port;
+    const char* server_cert;
+    const char* server_key;
+    SecureListenerTask* listenerTask;
+
+public:
+    /**
+     * @brief Constructor for the Secure Listener.
+     * @param port TCP port (defaults to 8883 for MQTTS).
+     * @param cert Server certificate (PEM format).
+     * @param key Server private key (PEM format).
+     */
+    SecureTcpServerListener(uint16_t port, const char* cert, const char* key);
+    
+    ~SecureTcpServerListener();
+
+    /**
+     * @brief Starts the server by instantiating and launching the background task.
+     */
+    void begin() override;
+
+    /**
+     * @brief Stops the server and its associated task.
+     */
+    void stop() override;
+
+    /**
+     * @brief Internal callback triggered by SecureListenerTask when a client connects.
+     * @param client_fd Pointer to the network context of the newly accepted client.
+     */
+    void acceptSecureClient(mbedtls_net_context* client_fd);
+};
+
+/**
+ * @brief Server listener for WebSocket Secure (WSS) connections.
+ * Uses the native esp_https_server to handle WSS upgrades and route events.
+ */
+class SecureWsServerListener : public ServerListener {
+private:
+    uint16_t port;
+    const char* wsEndpoint;
+    const char* server_cert;
+    const char* server_key;
+    void* server; // Use void* instead of httpd_handle_t to avoid header conflicts
+    
+    // Map to route events to the correct transport using the File Descriptor (socket)
+    std::map<int, SecureWsTransport*> activeTransports;
+
+public:
+    /**
+     * @brief Constructor for the Secure WebSocket Listener.
+     * @param port TCP port for the HTTPS server.
+     * @param wsEndpoint URI path for the WebSocket (e.g., "/mqtt").
+     * @param cert Server certificate (PEM format).
+     * @param key Server private key (PEM format).
+     */
+    SecureWsServerListener(uint16_t port, const char* wsEndpoint, const char* cert, const char* key);
+    
+    ~SecureWsServerListener();
+
+    /**
+     * @brief Initializes the HTTPS server and registers the WebSocket URI handler.
+     */
+    void begin() override;
+
+    /**
+     * @brief Stops the HTTPS server and clears active transports.
+     */
+    void stop() override;
+
+    /**
+     * @brief Static callback required by esp_https_server to process HTTP requests.
+     */
+    static esp_err_t ws_handler(struct httpd_req *req);
+    
+    /**
+     * @brief Internal event handler to process WebSocket frames and lifecycle events.
+     */
+    esp_err_t handleWsEvent(struct httpd_req *req);
 };
 
 
@@ -1171,5 +1324,5 @@ public:
 
 };
 
-#endif //MQTTBROKER_H
 }
+#endif //MQTTBROKER_H

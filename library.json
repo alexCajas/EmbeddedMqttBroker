@@ -1,8 +1,8 @@
 {
   "name": "EmbeddedMqttBroker",
-  "version": "2.0.12-qos0",
-  "description": "Mqtt Broker over both TCP and Websockets for embedded systems, tested on an Esp32 and esp8266.",
-  "keywords": "mqtt, broker, embedded, esp32, esp8266, freertos",
+  "version": "2.1.12-qos0",
+  "description": "MQTT/MQTTS Broker over TCP, Websockets, TCP with TLS and Secure Websockets (WSS) for embedded systems, tested on an Esp32 and esp8266.",
+  "keywords": "mqtt, broker, embedded, esp32, esp8266, freertos, mTLS, TCP, Websockets, mqtts, WSS, secure websockets, tcp with mtls",
   "repository": {
     "type": "git",
     "url": "https://github.com/alexCajas/EmbeddedMqttBroker.git"

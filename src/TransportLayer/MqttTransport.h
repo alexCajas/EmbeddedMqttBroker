@@ -4,6 +4,8 @@
 #include <Arduino.h>
 #include <functional>
 
+namespace mqttBrokerName {
+
 /**
  * @brief Abstract interface for MQTT Transport layers.
  * * This class defines the contract that any network transport (TCP, WebSocket, etc.)
@@ -107,5 +109,7 @@ public:
      */
     void setOnReadyToSend(std::function<void()> cb) { _onReadyToSend = cb; }
 };
+
+} // namespace mqttBrokerName
 
 #endif // MQTT_TRANSPORT_H

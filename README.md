@@ -4,7 +4,9 @@
 ![QoS](https://img.shields.io/badge/QoS-0-red)
 [![Arduino](https://img.shields.io/badge/platform-Arduino-green)](https://www.arduino.cc/)
 ![TCP](https://img.shields.io/badge/-TCP-yellow)
+![mTLS](https://img.shields.io/badge/-mTLS-yellow)
 ![WebSockets](https://img.shields.io/badge/-WebSockets-yellow)
+![SecureWebSockets](https://img.shields.io/badge/-SecureWebSockets-yellow)
 ![C++](https://img.shields.io/badge/-C%2B%2B-blue)
 ![FreeRTOS](https://img.shields.io/badge/-FreeRTOS-blue)
 [![Release](https://img.shields.io/github/v/release/alexCajas/EmbeddedMqttBroker)](https://github.com/alexCajas/embeddedMqttBroker/releases/latest)
@@ -13,16 +15,17 @@
 
 # EmbeddedMqttBroker
 
-**Plug-and-play, high-performance and scalable asynchronous MQTT broker** over **TCP** and **WebSockets**, designed for **embedded systems** specifically for **ESP32** and **ESP8266** microcontrollers. Requires **minimal configuration** and enables **rapid integration** out of the box. Built on a **modern event-driven, non-blocking architecture** to efficiently handle concurrent connections.  
 
-Leverages **FreeRTOS** to distribute workloads across CPU cores, ensuring **scalability**, **low latency**, and **resource efficiency** in constrained environments.
+**Asynchronous MQTT broker and synchronous MQTTS broker for ESP32 and ESP8266**(esp8266ArduCore), designed for **embedded IoT systems** requiring a **lightweight, high-performance, and scalable MQTT server**. This plug-and-play MQTT broker supports **MQTT over TCP, WebSockets, mTLS, and Secure WebSockets (WSS)**, enabling both **non-blocking async communication and secure certificate-based connections**. Built on a modern **event-driven architecture with FreeRTOS**, it efficiently handles multiple concurrent clients, delivering low latency, high throughput, and optimized resource usage in constrained environments distributing workloads across CPU cores.
+
+The broker uses an **async, non-blocking core for TCP and WebSocket connections**, while **secure modes (mTLS and WSS)** are implemented as **synchronous** due to the constraints and overhead of **TLS-based security**. This design balances performance and security for embedded use cases.
 
 
 **This project includes:**
 
 * [WrapperFreeRTOS library](https://github.com/alexCajas/WrapperFreeRTOS) to implement concurrent C++ objects.
-* [AsyncTCP by mathieucarbou](https://github.com/ESP32Async/AsyncTCP.git) for the MQTT broker over TCP layer.
-* [ESPAsyncWebServer by mathieucarbou](https://github.com/ESP32Async/ESPAsyncWebServer.git) for the MQTT broker over WebSockets layer.
+* [AsyncTCP by ESP32Async](https://github.com/ESP32Async/AsyncTCP.git) for the MQTT broker over TCP layer.
+* [ESPAsyncWebServer by ESP32Async](https://github.com/ESP32Async/ESPAsyncWebServer.git) for the MQTT broker over WebSockets layer.
 
 
 **Important Note for ESP8266 Users:** This library is **not compatible** with the official NONOSDK ESP8266 Arduino Core ([`esp8266/Arduino`](https://github.com/esp8266/Arduino)). To use it with the ESP8266, you need to switch to the [`esp8266RTOS` branch](https://github.com/alexCajas/EmbeddedMqttBroker/tree/esp8266RTOS), which is a synchronous implementation over TCP (that is compatible with esp32 to). Furthermore, this requires the use of the specific [`esp8266RTOSArduCore`](https://github.com/alexCajas/esp8266RTOSArduCore), an Arduino core for esp8266 built upon the [ESP8266 RTOS SDK](https://github.com/espressif/ESP8266_RTOS_SDK).
@@ -32,11 +35,15 @@ Leverages **FreeRTOS** to distribute workloads across CPU cores, ensuring **scal
 
 * **simple-tcp-MqttBroker.ino**: It show how to create, instantiate and use, a MqttBroker object over TCP protocol.
 
+* **secure-tcp-MqttBroker.ino**: It show how to create, instantiate and use, a MqttBroker object over TCP with mTLS protocol.
+  
 * **simple-websocket-MqttBroker.ino**: It show how to create, instantiate and use, a MqttBroker object over WebSocket protocol. It includes a HTML MQTT-WebSocket client dashboard, for easy testing directly in a web browser.
+
+* **secure-websocket-MqttBroker.ino**: It show how to create, instantiate and use, a MqttBroker object over secure websocket protocol (wss). It include a HTML Mqtt-WSS client dashboard. for easy testing directly in a web browser.
 
 * **httpServerAndMqttBroker.ino**: It show how to use a web server and mqtt broker in the same sketch.
 
-## Simple example
+## Simple MQTT example
 
 ~~~c++
 #include <WiFi.h> 
@@ -79,11 +86,106 @@ void loop(){
 }
 ~~~
 
+## secure MQTT over TCP/mTLS example
+
+~~~c++
+#include <WiFi.h> 
+#include "EmbeddedMqttBroker.h" 
+
+using namespace mqttBrokerName;
+
+const char *ssid = "SSID";
+const char *password = "PASSWORD";
+
+IPAddress ip(192,168,1,131);    
+IPAddress gateway(192,168,1,1);   
+IPAddress subnet(255,255,255,0);
+IPAddress dns1(212,231,6,7);
+IPAddress dns2(46,6 ,113,34); 
+
+
+/******************* mqtt broker ********************/
+uint16_t mqttsPort = 8883;
+
+MqttBroker* broker;
+
+// Replace with your actual server private cert in PEM format
+const char* SERVER_CERT = \
+"-----BEGIN CERTIFICATE-----\n" \
+"MIIDKjCCAhICFGW/JaC47eW3lmLeuN/IbW53muZZMA0GCSqGSIb3DQEBCwUAME8x\n" \
+//..................................................................
+"uo1qC9OV6n/IzycKD7h4f4O2WB8LYrQjNwK4kV7FS85E009F6cYOHFjf3yzF1A==\n" \
+"-----END CERTIFICATE-----\n" \
+;
+
+// Replace with your actual server private key in PEM format
+const char* SERVER_KEY = \
+"-----BEGIN PRIVATE KEY-----\n" \
+"MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDURY7X/YycGd8y\n" \
+//..................................................................
+"I7OEI3KzUC+B0ig15wNonRPt\n" \
+"-----END PRIVATE KEY-----\n" \
+;
+
+
+void setup(){
+  
+  /**
+   * @brief To see outputs of broker activity 
+   * (message to publish, new client's id etc...), 
+   * set your core debug level higher to NONE (I recommend INFO or VERBOSE level).
+   * More info: @link https://github.com/alexCajas/EmbeddedMqttBroker @endlink
+   */
+
+  Serial.begin(115200);
+  
+  // Connect to WiFi network
+  Serial.println();
+  Serial.println("--- Secure TCP MQTT Broker (MQTTS) ---");
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.config(ip, gateway, subnet,dns1,dns2);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println();
+
+  // Create the Secure Broker using the Factory Method for TCP over TLS
+  broker = MqttBrokerFactory::createSecureTcpBroker(SERVER_CERT, SERVER_KEY, mqttsPort);
+
+  // Start the broker (Listeners and Workers)
+  broker->startBroker();
+  
+  Serial.println("Secure Broker started successfully!");
+
+  // Print connection info
+  Serial.print("Connect using: mqtts://");
+  Serial.print(WiFi.localIP());
+  Serial.print(":");
+  Serial.println(mqttsPort);
+  Serial.println("Note: Ensure your MQTT client accepts the provided certificate.");
+}
+
+void loop(){
+  // The broker runs asynchronously in the background (Core 0 & Core 1).
+  // No need to call any loop method here.
+  vTaskDelete(NULL); // Optional: Delete the Arduino loop task to save RAM
+}
+
+~~~
+
 ## Install
 
 * You can install this, from arduino library manager, searching **embeddedmqttbroker**.
 
-* From platformIO using **alexcajas/EmbeddedMqttBroker@^2.0.12**
+* From platformIO using **alexcajas/EmbeddedMqttBroker@^2.1.12**
 
 * Or downloading this repo and [WrapperFreeRTOS](https://github.com/alexCajas/WrapperFreeRTOS), [AsyncTCP](https://github.com/ESP32Async/AsyncTCP.git), [ESPAsyncWebServer](https://github.com/ESP32Async/ESPAsyncWebServer.git) manually.
 
@@ -128,6 +230,8 @@ void loop(){
 
   lib_deps = 
       alexcajas/EmbeddedMqttBroker @ ^2.0.12
+      ESP32Async/AsyncTCP @ ^3.4.9
+      ESP32Async/ESPAsyncWebServer@^3.9.2
 
   build_flags =
       -DCORE_DEBUG_LEVEL=ARDUHAL_LOG_LEVEL_NONE
@@ -309,7 +413,7 @@ This event-driven, asynchronous model is the industry standard for high-performa
   * GRASP Patterns.
   * Solutions that reach to a balance between consumed memory and cpu time, because it covers the needs of most user of a Mqtt broker, for that I use:
   
-    * Event driven architecture.
+    * Event driven architecture for unsecure features.
     * Topics prefix Tree.
     * AsyncTCP and ESPAsyncWebServer Arduino libraries, and FreeRtos utils, because they are compatibles with many microcontrollers, and are the most used by the community.
 
@@ -369,6 +473,8 @@ This event-driven, asynchronous model is the industry standard for high-performa
 * **Communication protocols support**:
   * TCP
   * WebSockets
+  * TCP with mTLS
+  * Secure Websockets (wss)
   
 ## 6. Features to implement in future versions of this project <a name="id8"></a>
 

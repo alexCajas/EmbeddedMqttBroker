@@ -4,6 +4,8 @@
 #include "MqttTransport.h"
 #include <AsyncTCP.h>
 
+namespace mqttBrokerName {
+
 /**
  * @brief Concrete implementation of MqttTransport for TCP connections.
  * * This class acts as an adapter for the `AsyncTCP` library. It wraps an 
@@ -103,5 +105,7 @@ size_t send(const char* data, size_t len) override {
         return _client ? _client->remoteIP().toString() : "0.0.0.0";
     }
 };
+
+} // namespace mqttBrokerName
 
 #endif // TCP_TRANSPORT_H
